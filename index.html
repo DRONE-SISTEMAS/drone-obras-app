@@ -223,7 +223,7 @@
       </div>
       <div class="form-group">
         <label>Senha</label>
-        <input id="login-pass" type="password" placeholder="••••••••">
+        <input id="login-password" type="password" placeholder="••••••••">
       </div>
       <div id="login-error" style="color:var(--danger);font-size:12px;margin-bottom:10px;display:none;"></div>
       <button class="btn btn-primary btn-lg" style="width:100%" onclick="doLogin()">Entrar</button>
@@ -672,7 +672,7 @@
 // ── SUPABASE ─────────────────────────────────────────
 // !! SUBSTITUA PELAS SUAS CREDENCIAIS !!
 const SUPABASE_URL = 'https://ojdhovliloxdqbaannrm.supabase.co/rest/v1/';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZGhvdmxpbG94ZHFiYWFubnJtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI5OTM0MDEsImV4cCI6MjEwODU2OTQwMX0.LMH4Myvb1E0eqzHozGsaVmtLOt2Kn8ZR1bARTL7ptM0';
+const SUPABASE_KEY = 'SeyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZGhvdmxpbG94ZHFiYWFubnJtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI5OTM0MDEsImV4cCI6MjEwODU2OTQwMX0.LMH4Myvb1E0eqzHozGsaVmtLOt2Kn8ZR1bARTL7ptM0';
 window._sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ═══════════════════════════════════════════════════════
@@ -689,6 +689,24 @@ let _printHTML = '';   // HTML do último relatório gerado, para download
 // ═══════════════════════════════════════════════════════
 //  INIT CAPABILITIES
 // ═══════════════════════════════════════════════════════
+function showApp() {
+  document.getElementById('screen-login').style.display = 'none';
+  document.getElementById('screen-setup').style.display = 'none';
+  document.getElementById('screen-app').style.display   = 'flex';
+  buildNav();
+  loadProjects().then(() => {
+    loadReports();
+    loadUsers();
+    showScreen('s-dashboard');
+  });
+}
+
+function showLogin() {
+  document.getElementById('screen-app').style.display   = 'none';
+  document.getElementById('screen-setup').style.display = 'none';
+  document.getElementById('screen-login').style.display = 'flex';
+}
+
 async function initCapabilities() {
   const saved = localStorage.getItem('drone_user');
   if (saved) {
