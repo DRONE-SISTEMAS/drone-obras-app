@@ -988,14 +988,38 @@ async function loadAll() {
 }
 
 async function loadProjects() {
-  const { data } = await window._sb.from('projects').select('*');
-  projects = data || [];
+  const { data, error } = await window._sb.from('projects').select('*');
+  if (error) { console.error('loadProjects:', error); }
+  projects = (data || []).map(p => ({
+    ...p,
+    id:          p.id,
+    odDriveId:   p.od_drive_id  || p.odDriveId,
+    odItemId:    p.od_item_id   || p.odItemId,
+    odPath:      p.od_path      || p.odPath,
+    gestorEmail: p.gestor_email || p.gestorEmail,
+  }));
 }
 
 async function loadReports() {
   const q = window._sb.from('reports').select('*').order('created_at', { ascending: false });
-  const { data } = currentUser.role === 'gestor' ? await q : await q.eq('tecnico_email', currentUser.email);
-  reports = (data || []).map(r => ({...r, id: r.id, createdAt: r.created_at}));
+  // Técnico vê próprios relatórios; gestor vê todos
+  const { data, error } = currentUser.role === 'gestor'
+    ? await q
+    : await q.or(`tecnico_email.eq.${currentUser.email},tecnicoEmail.eq.${currentUser.email}`);
+  if (error) { console.error('loadReports:', error); }
+  // Normalizar campos snake_case → camelCase para compatibilidade com o app
+  reports = (data || []).map(r => ({
+    ...r,
+    id:              r.id,
+    createdAt:       r.created_at       || r.createdAt,
+    projetoId:       r.projeto_id       || r.projetoId,
+    projetoNome:     r.projeto_nome     || r.projetoNome,
+    tipoAtendimento: r.tipo_atendimento || r.tipoAtendimento,
+    tecnicoEmail:    r.tecnico_email    || r.tecnicoEmail,
+    fotoCount:       r.foto_count       || r.fotoCount || 0,
+    odWebUrl:        r.od_web_url       || r.odWebUrl,
+    odDayFolder:     r.od_day_folder    || r.odDayFolder,
+  }));
 }
 
 async function loadUsers() {
@@ -1833,7 +1857,7 @@ async function validateOdPath() {
       if (!token) throw new Error('Token Microsoft não disponível. Clique em "Conectar OneDrive" no topo do app.');
       // Busca pela pasta via Graph API usando search
       const searchResp = await fetch(
-        `https://graph.microsoft.com/v1.0/drives/${document.getElementById('proj-od-drive').value}/root/search(q='${encodeURIComponent(folderName)}')`,
+        `https://graph.microsoft.com/v1.0/drives/${document.getElementById('proj-od-drive-id').value}/root/search(q='${encodeURIComponent(folderName)}')`,
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
       const raw = await searchResp.json();
