@@ -1,0 +1,1997 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Drone Sistemas — Relatório de Atividades</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --surface2: #1c2230; --border: #2a3441; --border2: #364154;
+    --accent: #1a7ef7; --accent-dim: rgba(26,126,247,0.15); --accent-hover: #3d8ff8;
+    --success: #2dba65; --success-dim: rgba(45,186,101,0.15);
+    --warn: #f7a41a; --warn-dim: rgba(247,164,26,0.12);
+    --danger: #e5534b; --danger-dim: rgba(229,83,75,0.12);
+    --od: #0078d4; --od-dim: rgba(0,120,212,0.15);
+    --text: #e6edf3; --text2: #8b949e; --text3: #4d5566;
+    --radius: 8px; --radius-lg: 12px; --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+  #app { display: flex; flex-direction: column; min-height: 100%; }
+  #topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; flex-shrink: 0; }
+  .topbar-logo { display: flex; align-items: center; gap: 10px; }
+  .topbar-logo span { font-weight: 700; font-size: 15px; letter-spacing: -0.3px; }
+  .topbar-logo .sub { font-weight: 400; font-size: 12px; color: var(--text2); margin-left: 2px; }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .badge-role { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .badge-role.gestor { background: var(--accent-dim); color: var(--accent); }
+  .badge-role.tecnico { background: var(--success-dim); color: var(--success); }
+  .user-chip { display: flex; align-items: center; gap: 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px 4px 4px; font-size: 12px; }
+  .avatar { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: white; flex-shrink: 0; }
+  .btn-logout { font-size: 12px; color: var(--text2); background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+  .btn-logout:hover { background: var(--surface2); color: var(--text); }
+  #main { display: flex; flex: 1; overflow: hidden; }
+  #sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; }
+  .nav-section { padding: 16px 12px 8px; }
+  .nav-label { font-size: 10px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; padding: 0 8px; margin-bottom: 6px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: var(--radius); font-size: 13px; color: var(--text2); cursor: pointer; user-select: none; transition: all .15s; }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: var(--accent-dim); color: var(--accent); font-weight: 500; }
+  .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+  #content { flex: 1; overflow-y: auto; padding: 28px 32px; }
+  .screen { display: none; }
+  .screen.active { display: block; }
+  .page-title { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .page-sub { font-size: 13px; color: var(--text2); margin-bottom: 24px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; }
+  .card-title { font-size: 13px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; }
+  .stat-num { font-size: 32px; font-weight: 700; font-family: 'JetBrains Mono', monospace; line-height: 1; }
+  .stat-label { font-size: 12px; color: var(--text2); margin-top: 6px; }
+  .form-group { margin-bottom: 16px; }
+  .form-row { display: grid; gap: 16px; }
+  .form-row.cols-2 { grid-template-columns: 1fr 1fr; }
+  .form-row.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  label { display: block; font-size: 12px; font-weight: 500; color: var(--text2); margin-bottom: 6px; }
+  input, select, textarea { width: 100%; background: var(--bg); border: 1px solid var(--border2); border-radius: var(--radius); padding: 9px 12px; font-size: 13px; color: var(--text); font-family: 'Inter', sans-serif; transition: border-color .15s; outline: none; }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 80px; }
+  select option { background: var(--surface2); }
+  .btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; border-radius: var(--radius); font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: all .15s; font-family: 'Inter', sans-serif; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border2); }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-success { background: var(--success); color: white; }
+  .btn-success:hover { opacity: .9; }
+  .btn-danger { background: var(--danger-dim); color: var(--danger); border: 1px solid var(--danger); }
+  .btn-danger:hover { background: var(--danger); color: white; }
+  .btn-od { background: var(--od-dim); color: var(--od); border: 1px solid rgba(0,120,212,0.4); }
+  .btn-od:hover { background: var(--od); color: white; }
+  .btn-sm { padding: 6px 11px; font-size: 12px; }
+  .btn-lg { padding: 12px 24px; font-size: 15px; }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th { font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .chip-blue { background: var(--accent-dim); color: var(--accent); }
+  .chip-green { background: var(--success-dim); color: var(--success); }
+  .chip-warn { background: var(--warn-dim); color: var(--warn); }
+  .chip-red { background: var(--danger-dim); color: var(--danger); }
+  .chip-od { background: var(--od-dim); color: var(--od); }
+  .photo-drop { border: 2px dashed var(--border2); border-radius: var(--radius-lg); padding: 24px; text-align: center; cursor: pointer; transition: all .2s; position: relative; }
+  .photo-drop:hover, .photo-drop.drag { border-color: var(--accent); background: var(--accent-dim); }
+  .photo-drop input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; margin-top: 14px; }
+  .photo-thumb { position: relative; aspect-ratio: 1; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); }
+  .photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .photo-meta { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,.75); padding: 4px 6px; font-size: 9px; color: #ccc; font-family: 'JetBrains Mono', monospace; line-height: 1.4; }
+  .photo-del { position: absolute; top: 4px; right: 4px; background: var(--danger); color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .15s; }
+  .photo-thumb:hover .photo-del { opacity: 1; }
+  .report-header { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px 22px; margin-bottom: 20px; display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: center; }
+  .rh-info { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .rh-field span { display: block; font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
+  .rh-field strong { font-size: 13px; font-weight: 600; }
+  #screen-login { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg); }
+  .login-box { width: 400px; }
+  .login-logo { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; }
+  .login-logo div h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+  .login-logo div p { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 28px; }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .modal { background: var(--surface); border: 1px solid var(--border2); border-radius: var(--radius-lg); width: 100%; max-width: 600px; max-height: 88vh; overflow-y: auto; box-shadow: var(--shadow); }
+  .modal-header { padding: 20px 24px 0; display: flex; align-items: center; justify-content: space-between; }
+  .modal-title { font-size: 16px; font-weight: 700; }
+  .modal-close { background: none; border: none; color: var(--text2); cursor: pointer; font-size: 20px; line-height: 1; padding: 2px 6px; border-radius: 6px; }
+  .modal-close:hover { background: var(--surface2); color: var(--text); }
+  .modal-body { padding: 20px 24px 24px; }
+  .divider { height: 1px; background: var(--border); margin: 20px 0; }
+  .actions-row { display: flex; gap: 10px; align-items: center; }
+  .actions-row .ml-auto { margin-left: auto; }
+  .empty { text-align: center; padding: 48px 24px; color: var(--text2); }
+  .empty p { font-size: 13px; }
+  .steps { display: flex; gap: 0; margin-bottom: 28px; }
+  .step { flex: 1; padding: 10px 14px; font-size: 12px; font-weight: 500; color: var(--text3); border-bottom: 2px solid var(--border); text-align: center; }
+  .step.done { color: var(--success); border-color: var(--success); }
+  .step.active { color: var(--accent); border-color: var(--accent); font-weight: 600; }
+  #toast { position: fixed; bottom: 24px; right: 24px; z-index: 500; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+  .toast-item { background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--radius); padding: 12px 16px; font-size: 13px; display: flex; align-items: center; gap: 10px; animation: slideIn .25s ease; box-shadow: var(--shadow); pointer-events: all; max-width: 340px; }
+  .toast-item.success { border-left: 3px solid var(--success); }
+  .toast-item.error { border-left: 3px solid var(--danger); }
+  .toast-item.info { border-left: 3px solid var(--accent); }
+  .toast-item.od { border-left: 3px solid var(--od); }
+  @keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  .section-block { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 22px; margin-bottom: 16px; }
+  .section-block h3 { font-size: 13px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .spinner { width: 16px; height: 16px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* OneDrive config panel */
+  .od-config-box { background: var(--od-dim); border: 1px solid rgba(0,120,212,0.35); border-radius: var(--radius-lg); padding: 16px 18px; margin-bottom: 16px; }
+  .od-config-box .od-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--od); margin-bottom: 10px; }
+  .od-status-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+  .od-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .od-dot.ok { background: var(--success); }
+  .od-dot.err { background: var(--danger); }
+  .od-dot.pend { background: var(--warn); }
+  .od-path-display { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text2); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .od-link { font-size: 12px; color: var(--od); text-decoration: none; }
+  .od-link:hover { text-decoration: underline; }
+  .path-input-wrap { display: flex; gap: 8px; align-items: flex-end; }
+  .path-input-wrap input { flex: 1; }
+
+  /* Upload progress */
+  .upload-progress { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-top: 12px; }
+  .upload-progress .up-title { font-size: 12px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .up-bar-wrap { background: var(--border); border-radius: 4px; height: 6px; overflow: hidden; margin-bottom: 8px; }
+  .up-bar { height: 100%; background: var(--od); border-radius: 4px; transition: width .3s; }
+  .up-steps { display: flex; flex-direction: column; gap: 4px; }
+  .up-step { font-size: 11px; color: var(--text2); display: flex; align-items: center; gap: 6px; }
+  .up-step.done { color: var(--success); }
+  .up-step.active { color: var(--od); }
+  .up-step.err { color: var(--danger); }
+
+  /* ── Impressão ── */
+  @media print {
+    #screen-login, #screen-setup, #topbar, #sidebar, #sidebar-overlay,
+    #s-print-toolbar, #s-dashboard, #s-new-report, #s-reports,
+    #s-projects, #s-users { display: none !important; }
+    #screen-app, #main, #content, #s-print { display: block !important; background: none !important; padding: 0 !important; margin: 0 !important; border: none !important; box-shadow: none !important; overflow: visible !important; }
+    #s-print-body { padding: 0 !important; border: none !important; box-shadow: none !important; }
+    body { margin: 0; background: #fff; }
+  }
+
+  /* ── Hambúrguer ── */
+  #btn-menu { display:none; background:none; border:none; cursor:pointer; padding:6px; color:var(--text); }
+  #btn-menu svg { width:20px; height:20px; display:block; }
+  #sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:99; }
+
+  /* ── Tablet (≤1024px) ── */
+  @media (max-width: 1024px) {
+    #sidebar { width: 190px; }
+    .grid-3 { grid-template-columns: 1fr 1fr; }
+    .rh-info { grid-template-columns: 1fr 1fr; }
+    .form-row.cols-3 { grid-template-columns: 1fr 1fr; }
+  }
+
+  /* ── Mobile (≤700px) ── */
+  @media (max-width: 700px) {
+    #btn-menu { display:block; }
+    #sidebar {
+      position: fixed; top: 0; left: -240px; width: 240px; height: 100vh;
+      z-index: 100; transition: left .25s ease; box-shadow: 2px 0 16px rgba(0,0,0,.18);
+    }
+    #sidebar.open { left: 0; }
+    #sidebar-overlay.open { display:block; }
+    #content { padding: 16px 14px; }
+    #topbar { padding: 0 14px; }
+    .form-row.cols-2, .form-row.cols-3 { grid-template-columns: 1fr; }
+    .grid-2 { grid-template-columns: 1fr; }
+    .grid-3 { grid-template-columns: 1fr; }
+    .rh-info { grid-template-columns: 1fr 1fr; }
+    .stat-card { padding: 14px; }
+    .page-title { font-size: 18px; }
+    .modal { max-height: 95vh; }
+    .actions-row { flex-wrap: wrap; gap: 8px; }
+    table { font-size: 12px; }
+    .btn-sm { padding: 4px 8px; font-size: 11px; }
+    .login-box { padding: 20px 16px; width: 100%; max-width: 100%; }
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = 'https://ojdhovliloxdqbaannrm.supabase.co/rest/v1/';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZGhvdmxpbG94ZHFiYWFubnJtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI5OTM0MDEsImV4cCI6MjEwODU2OTQwMX0.LMH4Myvb1E0eqzHozGsaVmtLOt2Kn8ZR1bARTL7ptM0';
+window._sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+</script>
+</head>
+<body>
+
+<!-- ── LOGIN ── -->
+<div id="screen-login">
+  <div class="login-box">
+    <div class="login-logo" style="flex-direction:column;align-items:center;gap:8px">
+      <img src="data:image/png;base64,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" style="width:180px;height:auto">
+      <p style="margin:0;font-size:12px;color:var(--text2);text-align:center">Relatório de Atividades em Obra</p>
+    </div>
+    <div class="login-card">
+      <div class="form-group">
+        <label>E-mail corporativo</label>
+        <input id="login-email" type="email" placeholder="seu@email.com">
+      </div>
+      <div class="form-group">
+        <label>Senha</label>
+        <input id="login-pass" type="password" placeholder="••••••••">
+      </div>
+      <div id="login-error" style="color:var(--danger);font-size:12px;margin-bottom:10px;display:none;"></div>
+      <button class="btn btn-primary btn-lg" style="width:100%" onclick="doLogin()">Entrar</button>
+      <p style="text-align:center;margin-top:14px;font-size:12px;color:var(--text2)">
+        Use o e-mail e senha definidos pelo seu gestor
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ── SETUP INICIAL ── -->
+<div id="screen-setup" style="display:none;min-height:100vh;align-items:center;justify-content:center;background:var(--bg)">
+  <div style="width:420px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:32px">
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+        <rect width="40" height="40" rx="10" fill="#1a7ef7"/>
+        <path d="M20 8L8 20l12 12 12-12z" fill="white" opacity=".85"/>
+        <circle cx="20" cy="20" r="5" fill="white"/>
+      </svg>
+      <div><h1 style="font-size:22px;font-weight:800;letter-spacing:-0.5px">Drone Sistemas</h1>
+        <p style="font-size:12px;color:var(--text2);margin-top:2px">Primeiro acesso — configure o gestor principal</p></div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:28px">
+      <div style="background:var(--accent-dim);border:1px solid rgba(26,126,247,0.3);border-radius:var(--radius);padding:12px 14px;margin-bottom:20px;font-size:12px;color:var(--accent)">
+        Nenhum usuário cadastrado. Crie a conta do gestor principal para começar.
+      </div>
+      <div class="form-group">
+        <label>Nome completo *</label>
+        <input id="setup-nome" placeholder="Nome do gestor principal">
+      </div>
+      <div class="form-group">
+        <label>E-mail * <span style="font-weight:400;color:var(--text3)">(qualquer domínio)</span></label>
+        <input id="setup-email" type="email" placeholder="seu@email.com">
+      </div>
+      <div class="form-row cols-2">
+        <div class="form-group" style="margin-bottom:0">
+          <label>Senha *</label>
+          <input id="setup-senha" type="password" placeholder="mínimo 6 caracteres">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>Confirmar senha *</label>
+          <input id="setup-conf" type="password" placeholder="repita a senha">
+        </div>
+      </div>
+      <div id="setup-error" style="color:var(--danger);font-size:12px;margin-top:12px;display:none"></div>
+      <button class="btn btn-primary btn-lg" style="width:100%;margin-top:20px" onclick="doSetup()">Criar conta e entrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── APP SHELL ── -->
+<div id="screen-app" style="display:none;flex-direction:column;min-height:100vh">
+  <div id="topbar">
+    <div class="topbar-logo">
+      <button id="btn-menu" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 5h14M3 10h14M3 15h14"/></svg>
+      </button>
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+        <rect width="28" height="28" rx="7" fill="#1a7ef7"/>
+        <path d="M14 5L5 14l9 9 9-9z" fill="white" opacity=".85"/>
+        <circle cx="14" cy="14" r="3.5" fill="white"/>
+      </svg>
+      <span>Drone Sistemas <span class="sub">/ Obra</span></span>
+    </div>
+    <div class="topbar-right">
+      <span class="badge-role" id="topbar-role">—</span>
+      <div class="user-chip">
+        <div class="avatar" id="topbar-avatar">?</div>
+        <span id="topbar-name">…</span>
+      </div>
+      <button class="btn-logout" onclick="doLogout()">Sair</button>
+    </div>
+  </div>
+  <div id="sidebar-overlay" onclick="toggleSidebar()"></div>
+  <div id="main">
+    <div id="sidebar"></div>
+    <div id="content">
+
+      <!-- PAINEL -->
+      <div id="s-dashboard" class="screen active">
+        <div class="page-title">Painel</div>
+        <div class="page-sub" id="dash-sub">Visão geral dos projetos e relatórios</div>
+        <div class="grid-3" style="margin-bottom:24px" id="dash-stats"></div>
+        <div class="card">
+          <div class="card-title">Relatórios Recentes</div>
+          <div id="dash-recent-list"></div>
+        </div>
+      </div>
+
+      <!-- NOVO RELATÓRIO -->
+      <div id="s-new-report" class="screen">
+        <div class="page-title">Novo Relatório de Atividade</div>
+        <div class="page-sub">Preencha os dados — ao enviar, o relatório será salvo automaticamente no OneDrive do projeto</div>
+        <div class="steps">
+          <div class="step active" id="step1-tab">① Projeto & Local</div>
+          <div class="step" id="step2-tab">② Atividade & Fotos</div>
+          <div class="step" id="step3-tab">③ Revisão & Envio</div>
+        </div>
+        <div id="nr-step1">
+          <div class="section-block">
+            <h3>Projeto</h3>
+            <div class="form-row cols-2">
+              <div class="form-group" style="margin-bottom:0">
+                <label>Projeto / Centro de Custo *</label>
+                <select id="nr-projeto" onchange="onProjetoChange()"><option value="">Selecione…</option></select>
+              </div>
+              <div class="form-group" style="margin-bottom:0">
+                <label>Disciplina *</label>
+                <select id="nr-disciplina">
+                  <option value="">Selecione…</option>
+                  <option>Detecção e Alarme de Incêndio</option>
+                  <option>CFTV</option>
+                  <option>Controle de Acesso</option>
+                  <option>Cabeamento Estruturado</option>
+                  <option>Automação de Ar Condicionado</option>
+                  <option>Energia</option>
+                  <option>Automação Predial</option>
+                  <option>Telefonia</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row cols-2" style="margin-top:12px">
+              <div class="form-group" style="margin-bottom:0">
+                <label>Tipo de Atendimento *</label>
+                <select id="nr-tipo-atendimento">
+                  <option value="">Selecione…</option>
+                  <option>RDO</option>
+                  <option>MAN. PREVENTIVA</option>
+                  <option>MAN. CORRETIVA</option>
+                  <option>VISTORIA TÉCNICA</option>
+                </select>
+              </div>
+              <div></div>
+            </div>
+            <div id="nr-projeto-info" style="display:none;margin-top:14px">
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:12px">
+                <div class="grid-2" style="gap:8px;margin-bottom:8px">
+                  <div><span style="font-size:11px;color:var(--text2)">Cliente</span><br><strong id="info-cliente">—</strong></div>
+                  <div><span style="font-size:11px;color:var(--text2)">Gestor</span><br><strong id="info-gestor">—</strong></div>
+                </div>
+              </div>
+              <div id="nr-od-status" style="margin-top:10px"></div>
+            </div>
+          </div>
+          <div class="section-block">
+            <h3>Local</h3>
+            <div class="form-row cols-3">
+              <div class="form-group" style="margin-bottom:0"><label>Andar / Pavimento *</label><input id="nr-andar" placeholder="ex: 3º Andar"></div>
+              <div class="form-group" style="margin-bottom:0"><label>Área / Zona</label><input id="nr-area" placeholder="ex: Ala Norte"></div>
+              <div class="form-group" style="margin-bottom:0"><label>Sala / Ambiente</label><input id="nr-sala" placeholder="ex: Sala 302"></div>
+            </div>
+          </div>
+          <div class="actions-row">
+            <button class="btn btn-primary" onclick="goStep(2)">Continuar →</button>
+          </div>
+        </div>
+        <div id="nr-step2" style="display:none">
+          <div class="section-block">
+            <h3>Atividade Realizada</h3>
+            <div class="form-row cols-2" style="margin-bottom:16px">
+              <div class="form-group" style="margin-bottom:0">
+                <label>Tipo de Atividade *</label>
+                <select id="nr-atividade">
+                  <option value="">Selecione…</option>
+                  <option>Instalação</option>
+                  <option>Lançamento de Cabos</option>
+                  <option>Conectorização</option>
+                  <option>Configuração de Equipamento</option>
+                  <option>Testes e Comissionamento</option>
+                  <option>Manutenção Preventiva</option>
+                  <option>Manutenção Corretiva</option>
+                  <option>Inspeção Visual</option>
+                  <option>Programação</option>
+                  <option>Aterramento e SPDA</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin-bottom:0">
+                <label>Status</label>
+                <select id="nr-status">
+                  <option>Em andamento</option>
+                  <option>Concluído</option>
+                  <option>Pendência</option>
+                  <option>Aguardando material</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Observações / Descrição</label>
+              <textarea id="nr-obs" rows="4" placeholder="Descreva detalhes, intercorrências, materiais utilizados…"></textarea>
+            </div>
+          </div>
+          <div class="section-block">
+            <h3>Registro Fotográfico</h3>
+            <div class="photo-drop" id="photo-drop" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handlePhotoDrop(event)">
+              <input type="file" id="photo-input" accept="image/*" multiple onchange="handlePhotoInput(this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:32px;height:32px;margin:0 auto 8px;display:block;color:var(--text3)"><rect x="2" y="4" width="20" height="16" rx="2"/><circle cx="12" cy="12" r="3.5"/><path d="M9 4l1.5-2h3L15 4"/></svg>
+              <p style="font-size:13px;color:var(--text2)">Clique ou arraste fotos aqui</p>
+              <p style="font-size:11px;color:var(--text3);margin-top:4px">GPS registrado automaticamente quando disponível</p>
+            </div>
+            <div class="photo-grid" id="photo-preview"></div>
+          </div>
+          <div class="actions-row">
+            <button class="btn btn-secondary" onclick="goStep(1)">← Voltar</button>
+            <button class="btn btn-primary" onclick="goStep(3)">Revisar →</button>
+          </div>
+        </div>
+        <div id="nr-step3" style="display:none">
+          <div id="report-preview-box"></div>
+          <!-- Upload progress (oculto até o envio) -->
+          <div id="upload-progress-box" style="display:none" class="upload-progress">
+            <div class="up-title"><span class="spinner"></span><span id="up-title-text">Salvando no OneDrive…</span></div>
+            <div class="up-bar-wrap"><div class="up-bar" id="up-bar" style="width:0%"></div></div>
+            <div class="up-steps" id="up-steps"></div>
+          </div>
+          <div class="actions-row" style="margin-top:20px">
+            <button class="btn btn-secondary" id="btn-back-step2" onclick="goStep(2)">← Editar</button>
+            <button class="btn btn-success btn-lg" id="btn-submit-report" onclick="submitReport()">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M2 8l5 5 7-7"/></svg>
+              Enviar e Salvar no OneDrive
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- REPOSITÓRIO -->
+      <div id="s-reports" class="screen">
+        <div class="page-title">Repositório de Relatórios</div>
+        <div class="page-sub">Relatórios armazenados no app · Links diretos para o OneDrive disponíveis por projeto</div>
+        <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center">
+          <select id="filter-proj" onchange="filterReports()" style="max-width:240px"><option value="">Todos os projetos</option></select>
+          <select id="filter-disc" onchange="filterReports()" style="max-width:180px">
+            <option value="">Todas as disciplinas</option>
+            <option>Detecção e Alarme de Incêndio</option><option>CFTV</option><option>Controle de Acesso</option>
+            <option>Cabeamento Estruturado</option><option>Automação de Ar Condicionado</option>
+          </select>
+          <select id="filter-status" onchange="filterReports()" style="max-width:160px">
+            <option value="">Todos os status</option>
+            <option>Em andamento</option><option>Concluído</option><option>Pendência</option>
+          </select>
+          <span style="flex:1"></span>
+          <button class="btn btn-secondary btn-sm" onclick="loadReports()">↺ Atualizar</button>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>Projeto / CC</th><th>Disciplina</th><th>Atividade</th><th>Local</th><th>Técnico</th><th>Data/Hora</th><th>Status</th><th>Fotos</th><th>OneDrive</th><th>Ações</th></tr></thead>
+              <tbody id="reports-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PROJETOS (GESTOR) -->
+      <div id="s-projects" class="screen">
+        <div class="page-title">Gerenciar Projetos</div>
+        <div class="page-sub">Configure o cabeçalho, associe usuários e defina o caminho OneDrive de cada projeto</div>
+        <div class="actions-row" style="margin-bottom:20px">
+          <button class="btn btn-primary" onclick="openProjectModal()">
+            <svg viewBox="0 0 14 14" fill="currentColor" style="width:13px;height:13px"><path d="M7 1v12M1 7h12"/></svg>
+            Novo Projeto
+          </button>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Nome</th><th>Cliente</th><th>CC</th><th>Gestor</th><th>OneDrive</th><th>Usuários</th><th>Relatórios</th><th>Ações</th></tr></thead>
+              <tbody id="projects-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- USUÁRIOS (GESTOR) -->
+      <div id="s-users" class="screen">
+        <div class="page-title">Usuários do Sistema</div>
+        <div class="page-sub">Técnicos e gestores de projeto</div>
+        <div class="actions-row" style="margin-bottom:20px">
+          <button class="btn btn-primary" onclick="openUserModal()">
+            <svg viewBox="0 0 14 14" fill="currentColor" style="width:13px;height:13px"><path d="M7 1v12M1 7h12"/></svg>
+            Novo Usuário
+          </button>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Senha</th><th>Projetos</th><th>Ações</th></tr></thead>
+              <tbody id="users-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── TELA: VISUALIZAR / IMPRIMIR RELATÓRIO ── -->
+      <div id="s-print" class="screen">
+        <div id="s-print-toolbar" style="display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap">
+          <button class="btn btn-secondary" onclick="closePrintScreen()">← Voltar</button>
+          <span id="s-print-title" style="font-weight:600;font-size:15px;flex:1"></span>
+          <button class="btn btn-primary" id="btn-download-report" onclick="downloadRelatorioPDF()">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" style="width:14px;height:14px"><path d="M8 1v9M4 6l4 4 4-4M2 13h12"/></svg>
+            Salvar PDF / Imprimir
+          </button>
+        </div>
+        <div id="s-print-body" style="background:#fff;border-radius:var(--radius-lg);padding:20px 28px;overflow:hidden"></div>
+      </div>
+
+    </div><!-- #content -->
+  </div><!-- #main -->
+</div><!-- #screen-app -->
+
+<!-- MODAL: CONFIRMAÇÃO -->
+<div id="modal-confirm" class="modal-overlay" style="display:none">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header">
+      <div class="modal-title" id="confirm-title">Confirmar</div>
+    </div>
+    <div class="modal-body">
+      <p id="confirm-msg" style="margin-bottom:20px;line-height:1.5"></p>
+      <div class="actions-row" style="justify-content:flex-end;gap:8px">
+        <button class="btn btn-secondary" onclick="confirmarResp(false)">Cancelar</button>
+        <button class="btn btn-danger" id="confirm-ok-btn" onclick="confirmarResp(true)">Excluir</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: VER RELATÓRIO -->
+<div id="modal-report" class="modal-overlay" style="display:none">
+  <div class="modal" style="max-width:740px">
+    <div class="modal-header">
+      <div class="modal-title">Relatório de Atividade</div>
+      <button class="modal-close" onclick="closeModal('modal-report')">×</button>
+    </div>
+    <div class="modal-body" id="modal-report-body"></div>
+  </div>
+</div>
+
+<!-- MODAL: PROJETO -->
+<div id="modal-project" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="proj-modal-title">Novo Projeto</div>
+      <button class="modal-close" onclick="closeModal('modal-project')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="proj-edit-id">
+      <div class="form-row cols-2">
+        <div class="form-group"><label>Nome do Projeto *</label><input id="proj-nome" placeholder="ex: Torre Alpha — Automação"></div>
+        <div class="form-group"><label>Centro de Custo *</label><input id="proj-cc" placeholder="ex: CC-2024-001"></div>
+      </div>
+      <div class="form-row cols-2">
+        <div class="form-group"><label>Cliente *</label><input id="proj-cliente" placeholder="Razão Social do Cliente"></div>
+        <div class="form-group"><label>Gestor de Projeto *</label><input id="proj-gestor" placeholder="Nome Completo do Gestor"></div>
+      </div>
+      <div class="form-row cols-2">
+        <div class="form-group"><label>E-mail do Gestor *</label><input id="proj-gestor-email" type="email" placeholder="email do gestor (qualquer domínio)"></div>
+        <div class="form-group"><label>Status do Projeto</label>
+          <select id="proj-status-field"><option>Ativo</option><option>Concluído</option><option>Pausado</option></select>
+        </div>
+      </div>
+      <div class="form-group"><label>Usuários Associados (e-mails, separados por vírgula)</label>
+        <input id="proj-users" placeholder="tecnico@gmail.com, outro@hotmail.com, qualquer@email.com">
+      </div>
+
+      <!-- ONEDRIVE CONFIG -->
+      <div class="divider"></div>
+      <div style="margin-bottom:12px">
+        <div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <svg viewBox="0 0 20 14" fill="none" style="width:20px;height:14px">
+            <path d="M7.5 13H16.5C18.43 13 20 11.43 20 9.5C20 7.8 18.76 6.38 17.13 6.07C16.89 4.32 15.43 3 13.64 3C12.72 3 11.88 3.35 11.24 3.93C10.54 2.8 9.3 2 7.86 2C5.72 2 4 3.72 4 5.86C4 5.9 4 5.95 4 5.99C2.27 6.36 1 7.9 1 9.73C1 11.54 2.27 13 3.76 13H7.5Z" fill="#0078d4" opacity=".7"/>
+          </svg>
+          Repositório OneDrive / SharePoint
+        </div>
+        <p style="font-size:12px;color:var(--text2)">Cole o caminho completo da pasta OneDrive deste projeto. Os relatórios serão organizados em subpastas por data (ex: <code style="background:var(--bg);padding:1px 4px;border-radius:3px">2024-10-22/</code>).</p>
+      </div>
+
+      <div class="form-group">
+        <label>Caminho OneDrive (URL ou caminho da pasta) *</label>
+        <div class="path-input-wrap">
+          <input id="proj-od-path" placeholder="https://dronesistemas.sharepoint.com/sites/Obras/CC-2024-001" style="font-family:'JetBrains Mono',monospace;font-size:12px">
+          <button class="btn btn-od btn-sm" onclick="validateOdPath()" id="btn-validate-od">Validar</button>
+        </div>
+        <p style="font-size:11px;color:var(--text3);margin-top:5px">Cole a URL da pasta no navegador ou o caminho relativo (ex: /sites/Obras/Documentos/CC-2024-001)</p>
+      </div>
+      <div class="form-group">
+        <label>Drive ID <span style="font-weight:400;color:var(--text3)">(preenchido ao validar ou cole manualmente)</span></label>
+        <input id="proj-od-drive-id" placeholder="Preenchido automaticamente ou cole aqui (ex: b!Ab12Cd...)" style="font-family:'JetBrains Mono',monospace;font-size:12px">
+      </div>
+      <div class="form-group">
+        <label>Item ID da pasta raiz <span style="font-weight:400;color:var(--text3)">(preenchido ao validar ou cole manualmente)</span></label>
+        <input id="proj-od-item-id" placeholder="Preenchido automaticamente ou cole aqui" style="font-family:'JetBrains Mono',monospace;font-size:12px">
+      </div>
+      <div id="od-validation-status" style="display:none;margin-bottom:12px"></div>
+
+      <div class="actions-row">
+        <button class="btn btn-secondary" onclick="closeModal('modal-project')">Cancelar</button>
+        <span class="ml-auto"></span>
+        <button class="btn btn-primary" onclick="saveProject()">Salvar Projeto</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: USUÁRIO -->
+<div id="modal-user" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="user-modal-title">Novo Usuário</div>
+      <button class="modal-close" onclick="closeModal('modal-user')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="user-edit-id">
+      <div class="form-row cols-2">
+        <div class="form-group"><label>Nome Completo *</label><input id="user-nome" placeholder="Nome do técnico ou gestor"></div>
+        <div class="form-group"><label>E-mail * <span style="font-weight:400;color:var(--text3)">(qualquer domínio)</span></label>
+          <input id="user-email" type="email" placeholder="qualquer@email.com">
+        </div>
+      </div>
+      <div class="form-row cols-2">
+        <div class="form-group"><label>Perfil *</label>
+          <select id="user-perfil"><option value="tecnico">Técnico</option><option value="gestor">Gestor</option></select>
+        </div>
+        <div class="form-group"><label id="user-senha-label">Senha * <span style="font-weight:400;color:var(--text3)">(definida pelo gestor)</span></label>
+          <div style="display:flex;gap:8px">
+            <input id="user-senha" type="text" placeholder="defina a senha do usuário" style="flex:1">
+            <button class="btn btn-secondary btn-sm" type="button" onclick="gerarSenha()" title="Gerar senha aleatória">⚡</button>
+          </div>
+        </div>
+      </div>
+      <!-- Indicador de redefinição -->
+      <div id="user-reset-box" style="display:none;background:var(--warn-dim);border:1px solid rgba(247,164,26,0.4);border-radius:var(--radius);padding:12px 14px;font-size:12px;margin-bottom:4px">
+        <strong style="color:var(--warn)">Redefinir senha</strong><br>
+        <span style="color:var(--text2)">Uma nova senha será salva. Informe o usuário manualmente.</span>
+      </div>
+      <div class="actions-row" style="margin-top:12px">
+        <button class="btn btn-secondary" onclick="closeModal('modal-user')">Cancelar</button>
+        <span class="ml-auto"></span>
+        <button class="btn btn-primary" id="user-save-btn" onclick="saveUser()">Criar Usuário</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  ESTADO GLOBAL
+// ═══════════════════════════════════════════════════════
+let currentUser = null;
+let photos = [];
+let projects = [], reports = [], users = [];
+let _printHTML = '';   // HTML do último relatório gerado, para download
+
+// ── SEED DE DEMO ──
+// Sem dados demo — o gestor cria o primeiro usuário via tela de setup inicial
+
+// ═══════════════════════════════════════════════════════
+//  INIT CAPABILITIES
+// ═══════════════════════════════════════════════════════
+let assets = null; // capability assets para upload de fotos
+
+async function initCapabilities() {
+  const saved = localStorage.getItem('drone_user');
+  if (saved) {
+    try { currentUser = JSON.parse(saved); showApp(); return; } catch(_) {}
+  }
+  document.getElementById('screen-login').style.display = 'flex';
+}
+
+
+}
+
+
+  }
+  users = [admin];
+  // Não exibe tela de setup — admin já está criado; apenas carrega o login normal
+}
+
+// ═══════════════════════════════════════════════════════
+//  AUTH
+// ═══════════════════════════════════════════════════════
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim().toLowerCase();
+  const pass  = document.getElementById('login-password').value;
+  if (!email || !pass) { toast('Preencha e-mail e senha.','error'); return;  }
+  try {
+    const { data, error } = await window._sb.from('users').select('*').eq('email', email).single();
+    if (error || !data) { toast('Usuário não encontrado.','error'); return; }
+    if (data.senha !== pass) { toast('Senha incorreta.','error'); return; }
+    currentUser = data;
+    localStorage.setItem('drone_user', JSON.stringify(data));
+    showApp();
+  } catch(e) { toast('Erro de conexão: ' + (e.message||e), 'error'); }
+}
+
+function doLogout() {
+  currentUser = null;
+  localStorage.removeItem('drone_user');
+  document.getElementById('screen-app').style.display = 'none';
+  document.getElementById('screen-login').style.display = 'flex';
+}
+
+// ═══════════════════════════════════════════════════════
+//  NAV
+// ═══════════════════════════════════════════════════════
+function buildNav() {
+  const isG = currentUser.role === 'gestor';
+  document.getElementById('sidebar').innerHTML = `
+    <div class="nav-section">
+      <div class="nav-label">Menu</div>
+      <div class="nav-item" data-screen="s-dashboard" onclick="showScreen('s-dashboard')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+        Painel
+      </div>
+      ${!isG ? `<div class="nav-item" data-screen="s-new-report" onclick="showScreen('s-new-report')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1v14M1 8h14"/></svg>
+        Novo Relatório
+      </div>` : ''}
+      <div class="nav-item" data-screen="s-reports" onclick="showScreen('s-reports')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 2h12v12H2z"/><path d="M5 6h6M5 9h4"/></svg>
+        Relatórios
+      </div>
+      ${isG ? `
+      <div class="nav-label" style="margin-top:12px">Administração</div>
+      <div class="nav-item" data-screen="s-projects" onclick="showScreen('s-projects')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="14" height="10" rx="1.5"/><path d="M5 4V2.5A1.5 1.5 0 016.5 1h3A1.5 1.5 0 0111 2.5V4"/></svg>
+        Projetos
+      </div>
+      <div class="nav-item" data-screen="s-users" onclick="showScreen('s-users')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="3"/><path d="M1 14c0-3.3 3.1-6 7-6s7 2.7 7 6"/></svg>
+        Usuários
+      </div>` : ''}
+    </div>`;
+}
+
+
+// ── MODAL DE CONFIRMAÇÃO (substitui confirm() bloqueado no iframe) ──────────
+let _confirmResolve = null;
+function confirmar(msg, titulo = 'Confirmar exclusão', okLabel = 'Excluir') {
+  document.getElementById('confirm-msg').textContent   = msg;
+  document.getElementById('confirm-title').textContent = titulo;
+  document.getElementById('confirm-ok-btn').textContent = okLabel;
+  document.getElementById('modal-confirm').style.display = 'flex';
+  return new Promise(res => { _confirmResolve = res; });
+}
+function confirmarResp(ok) {
+  document.getElementById('modal-confirm').style.display = 'none';
+  if (_confirmResolve) { _confirmResolve(ok); _confirmResolve = null; }
+}
+
+function toggleSidebar(force) {
+  const sb  = document.getElementById('sidebar');
+  const ov  = document.getElementById('sidebar-overlay');
+  const open = force !== undefined ? force : !sb.classList.contains('open');
+  sb.classList.toggle('open', open);
+  ov.classList.toggle('open', open);
+}
+
+function showScreen(id) {
+  // Ocultar todas as screens, ativar a alvo
+  document.querySelectorAll('#content .screen').forEach(s => s.classList.remove('active'));
+  const target = document.getElementById(id);
+  if (!target) return;
+  target.classList.add('active');
+
+  // Highlight do nav: usar data-screen em vez de índice posicional
+  document.querySelectorAll('#sidebar .nav-item').forEach(n => {
+    n.classList.toggle('active', n.dataset.screen === id);
+  });
+
+  // Fechar sidebar no mobile após navegação
+  if (window.innerWidth <= 700) toggleSidebar(false);
+
+  // Renderizar conteúdo da screen
+  if (id === 's-dashboard')   renderDashboard();
+  if (id === 's-reports')     loadReports().then(renderReports);
+  if (id === 's-projects')    renderProjects();
+  if (id === 's-users')       renderUsers();
+  if (id === 's-new-report')  resetNewReport();
+}
+
+// ═══════════════════════════════════════════════════════
+//  LOAD DATA
+// ═══════════════════════════════════════════════════════
+async function loadAll() {
+  await Promise.all([loadProjects(), loadReports(), loadUsers()]);
+}
+
+async function loadProjects() {
+  const { data } = await window._sb.from('projects').select('*');
+  projects = data || [];
+}
+
+async function loadReports() {
+  const q = window._sb.from('reports').select('*').order('created_at', { ascending: false });
+  const { data } = currentUser.role === 'gestor' ? await q : await q.eq('tecnico_email', currentUser.email);
+  reports = (data || []).map(r => ({...r, id: r.id, createdAt: r.created_at}));
+}
+
+async function loadUsers() {
+  const { data } = await window._sb.from('users').select('*');
+  users = data || [];
+}
+
+// ═══════════════════════════════════════════════════════
+//  DASHBOARD
+// ═══════════════════════════════════════════════════════
+function renderDashboard() {
+  const myP = currentUser.role === 'gestor' ? projects : projects.filter(p=>(p.users||[]).includes(currentUser.email));
+  const myR = currentUser.role === 'gestor' ? reports : reports.filter(r=>r.tecnicoEmail===currentUser.email);
+  const concluded = myR.filter(r=>r.status==='Concluído').length;
+  const pending   = myR.filter(r=>r.status==='Pendência').length;
+  document.getElementById('dash-sub').textContent = `Olá, ${currentUser.name.split(' ')[0]}! Resumo dos seus projetos.`;
+  document.getElementById('dash-stats').innerHTML = `
+    <div class="stat-card"><div class="stat-num" style="color:var(--accent)">${myP.length}</div><div class="stat-label">Projetos ativos</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--success)">${concluded}</div><div class="stat-label">Atividades concluídas</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--warn)">${pending}</div><div class="stat-label">Pendências abertas</div></div>`;
+  const recent = myR.slice(0,6);
+  if (!recent.length) { document.getElementById('dash-recent-list').innerHTML = '<div class="empty"><p>Nenhum relatório ainda.</p></div>'; return; }
+  document.getElementById('dash-recent-list').innerHTML = `
+    <div class="table-wrap"><table>
+      <thead><tr><th>Projeto</th><th>Disciplina</th><th>Atividade</th><th>Técnico</th><th>Data</th><th>Status</th><th>OneDrive</th></tr></thead>
+      <tbody>${recent.map(r=>`<tr style="cursor:pointer" onclick="openReport('${r.id}')">
+        <td><strong>${r.projetoNome||'—'}</strong><br><span style="color:var(--text2);font-size:11px">${r.cc||''}</span></td>
+        <td>${r.disciplina||'—'}</td><td>${r.atividade||'—'}</td><td>${r.tecnico||'—'}</td>
+        <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${fmtDate(r.createdAt)}</td>
+        <td>${statusChip(r.status)}</td>
+        <td><button class="btn btn-od btn-sm" style="padding:2px 8px;font-size:11px" onclick="event.stopPropagation();sincronizarEAbrirRelatorio('${r.id}',this)">🔗 Ver</button></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+//  NOVO RELATÓRIO
+// ═══════════════════════════════════════════════════════
+function resetNewReport() {
+  photos = [];
+  document.getElementById('photo-preview').innerHTML = '';
+  document.getElementById('upload-progress-box').style.display = 'none';
+  const sel = document.getElementById('nr-projeto');
+  sel.innerHTML = '<option value="">Selecione…</option>';
+  const myP = currentUser.role === 'gestor' ? projects : projects.filter(p=>(p.users||[]).includes(currentUser.email));
+  myP.forEach(p => { const o = document.createElement('option'); o.value = p.id; o.textContent = `${p.nome} (${p.cc})`; sel.appendChild(o); });
+  ['nr-disciplina','nr-tipo-atendimento','nr-atividade','nr-status','nr-obs','nr-andar','nr-area','nr-sala'].forEach(id => {
+    const el = document.getElementById(id); if (!el) return;
+    el.tagName === 'SELECT' ? (el.selectedIndex = 0) : (el.value = '');
+  });
+  document.getElementById('nr-projeto-info').style.display = 'none';
+  document.getElementById('btn-submit-report').disabled = false;
+  document.getElementById('btn-submit-report').innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M2 8l5 5 7-7"/></svg> Enviar e Salvar no OneDrive';
+  goStep(1);
+}
+
+function onProjetoChange() {
+  const id = document.getElementById('nr-projeto').value;
+  const p = projects.find(x => x.id === id);
+  const info = document.getElementById('nr-projeto-info');
+  if (!p) { info.style.display = 'none'; return; }
+  document.getElementById('info-cliente').textContent = p.cliente;
+  document.getElementById('info-gestor').textContent = p.gestor;
+  info.style.display = 'block';
+  // OneDrive status
+  const odBox = document.getElementById('nr-od-status');
+  if (p.odDriveId && p.odItemId) {
+    odBox.innerHTML = `<div class="od-config-box">
+      <div class="od-title">
+        <svg viewBox="0 0 20 14" fill="none" style="width:18px;height:12px"><path d="M7.5 13H16.5C18.43 13 20 11.43 20 9.5C20 7.8 18.76 6.38 17.13 6.07C16.89 4.32 15.43 3 13.64 3C12.72 3 11.88 3.35 11.24 3.93C10.54 2.8 9.3 2 7.86 2C5.72 2 4 3.72 4 5.86C4 5.9 4 5.95 4 5.99C2.27 6.36 1 7.9 1 9.73C1 11.54 2.27 13 3.76 13H7.5Z" fill="#0078d4"/></svg>
+        OneDrive configurado
+      </div>
+      <div class="od-status-row">
+        <div class="od-dot ok"></div>
+        <div class="od-path-display">${p.odPath||'Pasta raiz do projeto'}</div>
+      </div>
+      <p style="font-size:11px;color:var(--text2);margin-top:8px">O relatório será salvo em: <code style="background:var(--bg);padding:1px 5px;border-radius:3px">${p.odPath||'/'} / ${todayFolder()} / relatorio_[id].json</code></p>
+    </div>`;
+  } else {
+    odBox.innerHTML = `<div class="od-config-box" style="border-color:rgba(247,164,26,0.4);background:var(--warn-dim)">
+      <div class="od-title" style="color:var(--warn)">⚠ OneDrive não configurado</div>
+      <p style="font-size:12px;color:var(--text2)">Este projeto ainda não tem repositório OneDrive definido. O relatório será salvo apenas no app. Solicite ao gestor que configure o caminho do projeto.</p>
+    </div>`;
+  }
+}
+
+function goStep(n) {
+  if (n===2) {
+    if (!document.getElementById('nr-projeto').value) { toast('Selecione um projeto.','error'); return; }
+    if (!document.getElementById('nr-disciplina').value) { toast('Selecione uma disciplina.','error'); return; }
+    if (!document.getElementById('nr-andar').value) { toast('Informe o andar/pavimento.','error'); return; }
+  }
+  if (n===3) {
+    if (!document.getElementById('nr-tipo-atendimento').value) { toast('Selecione o tipo de atendimento.','error'); return; }
+    if (!document.getElementById('nr-atividade').value) { toast('Selecione o tipo de atividade.','error'); return; }
+    buildPreview();
+  }
+  [1,2,3].forEach(i => {
+    document.getElementById('nr-step'+i).style.display = i===n ? 'block' : 'none';
+    const t = document.getElementById('step'+i+'-tab');
+    t.className = 'step' + (i<n?' done':i===n?' active':'');
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+//  FOTOS
+// ═══════════════════════════════════════════════════════
+function handlePhotoInput(input) { processFiles(Array.from(input.files)); }
+function handlePhotoDrop(ev) {
+  ev.preventDefault();
+  document.getElementById('photo-drop').classList.remove('drag');
+  processFiles(Array.from(ev.dataTransfer.files).filter(f=>f.type.startsWith('image/')));
+}
+function processFiles(files) {
+  if (!files.length) return;
+
+  // Processar fotos IMEDIATAMENTE (sem aguardar GPS — iframe bloqueia getCurrentPosition)
+  // GPS é tentado em paralelo e atualiza as fotos se vier a tempo
+  files.forEach(f => readPhoto(f, null));
+
+  // Tentar GPS em background — atualiza as últimas N fotos se responder
+  if (navigator.geolocation) {
+    const count = files.length;
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        // Atualizar as fotos recém adicionadas com coordenadas
+        const total = photos.length;
+        for (let i = total - count; i < total; i++) {
+          if (photos[i] && photos[i].lat === null) {
+            photos[i].lat = pos.coords.latitude.toFixed(6);
+            photos[i].lng = pos.coords.longitude.toFixed(6);
+            photos[i].accuracy = Math.round(pos.coords.accuracy);
+          }
+        }
+        renderPhotoGrid();
+        toast(`📍 GPS capturado (±${Math.round(pos.coords.accuracy)}m)`, 'success');
+      },
+      () => {
+        toast('📍 GPS indisponível — fotos sem coordenadas. Habilite a localização no navegador.', 'info');
+      },
+      { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 }
+    );
+  }
+}
+function readPhoto(file, coords) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+    photos.push({
+      blob: file,                    // Blob original — enviado para assets no submit
+      dataUrl: e.target.result,      // Usado só para preview local
+      time: new Date().toLocaleString('pt-BR'),
+      lat:  coords ? coords.latitude.toFixed(6)  : null,
+      lng:  coords ? coords.longitude.toFixed(6) : null,
+      accuracy: coords ? Math.round(coords.accuracy) : null,
+      name: file.name,
+      sizeMB,
+      assetId:  null,   // preenchido após upload para assets
+      assetUrl: null,
+    });
+    renderPhotoGrid();
+  };
+  reader.readAsDataURL(file);
+}
+function renderPhotoGrid() {
+  document.getElementById('photo-preview').innerHTML = photos.map((p,i)=>`
+    <div class="photo-thumb">
+      <img src="${p.dataUrl}">
+      <div class="photo-meta">${p.time}<br>${p.lat?`${p.lat}, ${p.lng}`:'GPS N/D'}${p.accuracy?` ±${p.accuracy}m`:''}</div>
+      <button class="photo-del" onclick="removePhoto(${i})">×</button>
+    </div>`).join('');
+}
+function removePhoto(i) { photos.splice(i,1); renderPhotoGrid(); }
+
+// ═══════════════════════════════════════════════════════
+//  PREVIEW
+// ═══════════════════════════════════════════════════════
+function buildPreview() {
+  const pid = document.getElementById('nr-projeto').value;
+  const proj = projects.find(p=>p.id===pid)||{};
+  document.getElementById('report-preview-box').innerHTML = `
+    <div class="report-header">
+      <svg width="44" height="44" viewBox="0 0 44 44" fill="none"><rect width="44" height="44" rx="10" fill="#1a7ef7"/><path d="M22 8L8 22l14 14 14-14z" fill="white" opacity=".85"/><circle cx="22" cy="22" r="5.5" fill="white"/></svg>
+      <div>
+        <div style="font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;margin-bottom:8px">Cabeçalho do Relatório</div>
+        <div class="rh-info">
+          <div class="rh-field"><span>Cliente</span><strong>${proj.cliente||'—'}</strong></div>
+          <div class="rh-field"><span>Projeto / CC</span><strong>${proj.nome||'—'} / ${proj.cc||'—'}</strong></div>
+          <div class="rh-field"><span>Gestor de Projeto</span><strong>${proj.gestor||'—'}</strong></div>
+          <div class="rh-field"><span>Técnico Responsável</span><strong>${currentUser.name}</strong></div>
+          <div class="rh-field"><span>Data / Hora</span><strong>${new Date().toLocaleString('pt-BR')}</strong></div>
+          <div class="rh-field"><span>Disciplina</span><strong>${document.getElementById('nr-disciplina').value}</strong></div>
+        </div>
+      </div>
+    </div>
+    <div class="section-block" style="margin-bottom:14px">
+      <h3>Atividade</h3>
+      <div class="grid-2" style="gap:12px">
+        <div><span style="font-size:11px;color:var(--text2)">Tipo</span><br><strong>${document.getElementById('nr-atividade').value}</strong></div>
+        <div><span style="font-size:11px;color:var(--text2)">Status</span><br>${statusChip(document.getElementById('nr-status').value)}</div>
+        <div><span style="font-size:11px;color:var(--text2)">Local</span><br><strong>${document.getElementById('nr-andar').value}${document.getElementById('nr-area').value?' / '+document.getElementById('nr-area').value:''}${document.getElementById('nr-sala').value?' / '+document.getElementById('nr-sala').value:''}</strong></div>
+        <div><span style="font-size:11px;color:var(--text2)">Observações</span><br><span>${document.getElementById('nr-obs').value||'—'}</span></div>
+      </div>
+    </div>
+    ${photos.length?`<div class="section-block"><h3>Fotos (${photos.length}) — serão enviadas para storage</h3><div class="photo-grid">${photos.map(p=>`<div class="photo-thumb"><img src="${p.dataUrl}"><div class="photo-meta">${p.time} · ${p.sizeMB} MB<br>${p.lat?p.lat+', '+p.lng:'GPS N/D'}</div></div>`).join('')}</div></div>`:''}
+    ${proj.odDriveId?`<div style="background:var(--od-dim);border:1px solid rgba(0,120,212,0.3);border-radius:var(--radius);padding:10px 14px;font-size:12px;color:var(--od);display:flex;align-items:center;gap:8px"><svg viewBox="0 0 20 14" fill="none" style="width:16px;height:11px"><path d="M7.5 13H16.5C18.43 13 20 11.43 20 9.5C20 7.8 18.76 6.38 17.13 6.07C16.89 4.32 15.43 3 13.64 3C12.72 3 11.88 3.35 11.24 3.93C10.54 2.8 9.3 2 7.86 2C5.72 2 4 3.72 4 5.86C4 5.9 4 5.95 4 5.99C2.27 6.36 1 7.9 1 9.73C1 11.54 2.27 13 3.76 13H7.5Z" fill="#0078d4"/></svg>Será salvo automaticamente em: <strong>${proj.odPath||'Pasta do projeto'} / ${todayFolder()}/</strong></div>`:''}`;
+}
+
+// ═══════════════════════════════════════════════════════
+//  SUBMIT + ONEDRIVE UPLOAD
+// ═══════════════════════════════════════════════════════
+async function submitReport() {
+  const btn = document.getElementById('btn-submit-report');
+  const backBtn = document.getElementById('btn-back-step2');
+  btn.disabled = true;
+  backBtn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Processando…';
+
+  const pid = document.getElementById('nr-projeto').value;
+  const proj = projects.find(p=>p.id===pid)||{};
+  const reportId = 'R' + Date.now();
+  const now = new Date();
+
+  const report = {
+    id: reportId,
+    projetoId: pid,
+    projetoNome: proj.nome,
+    cc: proj.cc,
+    cliente: proj.cliente,
+    gestor: proj.gestor,
+    gestorEmail: proj.gestorEmail||'',
+    disciplina: document.getElementById('nr-disciplina').value,
+    tipoAtendimento: document.getElementById('nr-tipo-atendimento').value,
+    atividade: document.getElementById('nr-atividade').value,
+    status: document.getElementById('nr-status').value,
+    andar: document.getElementById('nr-andar').value,
+    area: document.getElementById('nr-area').value,
+    sala: document.getElementById('nr-sala').value,
+    obs: document.getElementById('nr-obs').value,
+    fotos: [],            // preenchido abaixo após upload de assets
+    fotoCount: photos.length,
+    tecnico: currentUser.name,
+    tecnicoEmail: currentUser.email,
+    createdAt: now.toISOString(),
+    odWebUrl: null,
+    odDayFolder: null,
+  };
+
+  // ── Mostrar barra de progresso ──
+  const progressBox = document.getElementById('upload-progress-box');
+  progressBox.style.display = 'block';
+  progressBox.scrollIntoView({ behavior:'smooth', block:'nearest' });
+
+  // ── 1. Salvar relatório no Supabase PRIMEIRO ─────────────────────────────
+  setUpStep('Salvando relatório…', 10);
+  try {
+    const { error } = await window._sb.from('reports').upsert({
+      ...report,
+      created_at: report.createdAt,
+      tecnico_email: report.tecnicoEmail,
+      projeto_id: report.projetoId,
+      projeto_nome: report.projetoNome,
+      tipo_atendimento: report.tipoAtendimento,
+      foto_count: report.fotoCount || 0,
+      od_web_url: report.odWebUrl || null,
+      od_day_folder: report.odDayFolder || null,
+    });
+    if (error) throw error;
+    addUpStep('Relatório salvo ✓', 'done');
+  } catch(e) {
+    addUpStep(`Erro ao salvar: ${e.message||e}`, 'err');
+  }
+
+  // ── 2. Upload de fotos via Supabase Storage ───────────────────────────────
+  if (photos.length > 0) {
+    setUpStep(`Enviando ${photos.length} foto(s)…`, 20);
+    const fotasUpadas = [];
+    let algumOk = false;
+    for (let i = 0; i < photos.length; i++) {
+      const p = photos[i];
+      try {
+        if (p.blob) {
+          addUpStep(`Foto ${i+1}/${photos.length}: enviando ${p.name}…`, 'active');
+          const ext  = (p.name||'foto').split('.').pop().toLowerCase() || 'jpg';
+          const path = `${reportId}/foto_${i}.${ext}`;
+          const { error: upErr } = await window._sb.storage.from('fotos-relatorios').upload(path, p.blob, { upsert: true });
+          if (!upErr) {
+            const { data: { publicUrl } } = window._sb.storage.from('fotos-relatorios').getPublicUrl(path);
+            fotasUpadas.push({ assetUrl: publicUrl, time:p.time, lat:p.lat, lng:p.lng, accuracy:p.accuracy, name:p.name, sizeMB:p.sizeMB });
+            algumOk = true;
+          } else {
+            fotasUpadas.push({ time:p.time, lat:p.lat, lng:p.lng, accuracy:p.accuracy, name:p.name, sizeMB:p.sizeMB });
+          }
+          addUpStep(`Foto ${i+1}/${photos.length}: ${p.name} ✓`, 'done');
+        } else {
+          fotasUpadas.push({ time:p.time, lat:p.lat, lng:p.lng, accuracy:p.accuracy, name:p.name, sizeMB:p.sizeMB });
+        }
+      } catch(e) {
+        const msg = e?.message || String(e);
+        addUpStep(`Foto ${i+1}: erro — ${msg}`, 'err');
+        fotasUpadas.push({ time:p.time, lat:p.lat, lng:p.lng, accuracy:p.accuracy, name:p.name, sizeMB:p.sizeMB, erroAsset: msg });
+      }
+    }
+    report.fotos = fotasUpadas;
+
+    if (algumOk) {
+      try {
+        await window._sb.from('reports').update({ fotos: fotasUpadas, foto_count: fotasUpadas.length }).eq('id', reportId);
+        addUpStep('URLs das fotos atualizadas ✓', 'done');
+      } catch(e) {
+        addUpStep(`Aviso: ${e.message||e}`, 'active');
+      }
+    }
+  }
+
+  // ── Atualizar array em memória (adiciona dataUrl local para exibição imediata) ──
+  const reportMem = {
+    ...report,
+    fotos: report.fotos.map((f, i) => ({
+      ...f,
+      dataUrl: photos[i]?.dataUrl || null,   // preview local disponível na sessão
+    }))
+  };
+  reports.unshift(reportMem);
+
+  // ── Upload OneDrive ──
+  // Recarregar projeto do DB para garantir IDs atualizados
+  let projAtual = proj;
+  {
+    try {
+      const snap = await db.collection('projects').doc(pid).get();
+      if (snap) projAtual = snap.data() || proj;
+    } catch(e) {}
+  }
+
+  if (projAtual.odDriveId && projAtual.odItemId) {
+    try {
+      await uploadToOneDrive(report, projAtual);
+    } catch(e) {
+      addUpStep(`Erro no OneDrive: ${e.message||e}`, 'err');
+      toast('Relatório salvo no app, mas houve erro no OneDrive.','warn');
+    }
+  } else {
+    addUpStep('OneDrive não configurado — salvo apenas no app.', 'err');
+    setTimeout(() => toast('Configure o OneDrive no cadastro do projeto.','info'), 400);
+  }
+
+  setUpBar(100);
+  document.getElementById('up-title-text').textContent = 'Concluído!';
+
+  // ── Atualizar DB com odWebUrl e odDayFolder retornados pelo upload ──
+  {
+    try {
+      await db.collection('reports').doc(reportId).update({
+        odWebUrl: report.odWebUrl || null,
+        odDayFolder: report.odDayFolder || null,
+      });
+    } catch(e) {}
+  }
+
+  btn.innerHTML = '✓ Enviado!';
+  backBtn.disabled = false;
+
+  setTimeout(() => { showScreen('s-reports'); }, 1500);
+}
+
+async function uploadToOneDrive(report, proj) {
+  const todayStr = todayFolder();
+  const dtObj    = new Date(report.createdAt);
+  const ddmmaa   = `${String(dtObj.getDate()).padStart(2,'0')}-${String(dtObj.getMonth()+1).padStart(2,'0')}-${String(dtObj.getFullYear()).slice(2)}`;
+  const safeDisc = (report.disciplina||'relatorio').replace(/[^a-zA-Z0-9]/g,'_');
+  const filename = `${ddmmaa}_${safeDisc}_${report.id}`;
+
+  addUpStep('Conectando ao OneDrive…', 'active');
+  setUpBar(20);
+
+  // Token Microsoft Graph do gestor atual (armazenado no Supabase)
+  const token = currentUser?.graph_token;
+  if (!token) {
+    addUpStep('Token Microsoft não disponível. Faça login com sua conta Microsoft.', 'err');
+    report.odWebUrl = null;
+    return;
+  }
+
+  const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+  try {
+    // ── 1. Criar pasta do dia ─────────────────────────────────────────────
+    addUpStep(`Criando pasta ${todayStr}…`, 'active');
+    setUpBar(35);
+    let dayFolderId = proj.odItemId;
+
+    const mkdirResp = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${proj.odDriveId}/items/${proj.odItemId}/children`,
+      { method:'POST', headers, body: JSON.stringify({ name: todayStr, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }) }
+    );
+    if (mkdirResp.ok) {
+      const folder = await mkdirResp.json();
+      dayFolderId = folder.id;
+      addUpStep(`Pasta ${todayStr} criada ✓`, 'done');
+    } else {
+      // Pasta já existe — buscar pelo nome
+      addUpStep(`Pasta ${todayStr} já existe, localizando…`, 'active');
+      const searchResp = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${proj.odDriveId}/items/${proj.odItemId}/children?$filter=name eq '${todayStr}'`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      const searchData = await searchResp.json();
+      dayFolderId = searchData.value?.[0]?.id || proj.odItemId;
+      if (dayFolderId !== proj.odItemId) addUpStep(`Pasta ${todayStr} localizada ✓`, 'done');
+      else addUpStep(`Usando pasta raiz do projeto (fallback)`, 'active');
+    }
+
+    setUpBar(55);
+
+    // ── 2. Upload JSON ────────────────────────────────────────────────────
+    addUpStep('Enviando JSON de metadados…', 'active');
+    const reportExport = { ...report, fotos: (report.fotos||[]).map(f=>({time:f.time,lat:f.lat,lng:f.lng,accuracy:f.accuracy,name:f.name,assetUrl:f.assetUrl||null})), _exportedAt: new Date().toISOString() };
+    const jsonContent = JSON.stringify(reportExport, null, 2);
+    const jsonResp = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${proj.odDriveId}/items/${dayFolderId}:/${filename}.json:/content`,
+      { method:'PUT', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: jsonContent }
+    );
+    const jsonResult = await jsonResp.json();
+    const jsonWebUrl = jsonResult.webUrl || null;
+    addUpStep('JSON salvo ✓', 'done');
+    setUpBar(70);
+
+    // ── 3. Upload HTML formatado ──────────────────────────────────────────
+    addUpStep('Gerando e enviando HTML do relatório…', 'active');
+    let htmlWebUrl = null;
+    try {
+      const htmlContent = await gerarHTMLRelatorio(report);
+      const htmlResp = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${proj.odDriveId}/items/${dayFolderId}:/${filename}.html:/content`,
+        { method:'PUT', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'text/html' }, body: htmlContent }
+      );
+      const htmlResult = await htmlResp.json();
+      htmlWebUrl = htmlResult.webUrl || null;
+      addUpStep('HTML salvo ✓', 'done');
+    } catch(htmlErr) {
+      addUpStep(`HTML: ${htmlErr?.message||htmlErr} (JSON salvo)`, 'active');
+    }
+    setUpBar(90);
+
+    const finalUrl = htmlWebUrl || jsonWebUrl;
+    if (finalUrl) {
+      report.odWebUrl    = finalUrl;
+      report.odDayFolder = todayStr;
+      addUpStep('✓ Relatório salvo no OneDrive', 'done');
+      toast(`Relatório salvo no OneDrive — ${todayStr}`, 'od');
+    } else {
+      report.odWebUrl    = `${proj.odPath||'OneDrive'}/${todayStr}/${filename}`;
+      report.odDayFolder = todayStr;
+      addUpStep('✓ Arquivos enviados', 'done');
+      toast(`Relatório enviado ao OneDrive — ${todayStr}`, 'od');
+    }
+  } catch(e) {
+    const msg = e?.message || (typeof e==='string' ? e : JSON.stringify(e));
+    addUpStep(`Erro OneDrive: ${msg}`, 'err');
+    toast('Erro ao salvar no OneDrive. Relatório salvo apenas no app.', 'error');
+    report.odWebUrl = null;
+  }
+}
+
+// ── GERAR HTML DO RELATÓRIO (reutilizado pelo export e pelo upload OneDrive) ──
+async function gerarHTMLRelatorio(r) {
+
+  const dt     = new Date(r.createdAt);
+  const dtBR   = dt.toLocaleDateString('pt-BR');
+  const hrInicio = dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  const docNum = r.id.replace('R','').slice(-6);
+
+  // ── Logo base64 do DOM ──
+  const logoEl = document.querySelector('#screen-login .login-logo img');
+  const logoB64 = logoEl ? logoEl.src : '';
+
+  // ── Status texto ──
+  const statusMap = { 'Em andamento':'Em andamento', 'Concluído':'Concluído ✓', 'Pendência':'Pendência ⚠', 'Aguardando material':'Aguardando material' };
+  const statusTxt = statusMap[r.status] || r.status || '—';
+
+  // ── Helpers de bloco ──
+  function cabecalhoHTML(pag, total, docN, logo) {
+    const logoTag = logo
+      ? `<img src="${logo}" style="width:100px;height:auto;display:block;margin:0 auto;">`
+      : `<strong style="color:#1F497D;font-size:12pt">DRONE<br><span style="font-size:8pt;font-weight:400">Sistemas Eletrônicos</span></strong>`;
+    return `<table class="cabecalho">
+  <tr>
+    <td class="logo-cell" rowspan="2">${logoTag}</td>
+    <td class="titulo-relatorio" rowspan="2">RELATÓRIO DE SERVIÇOS TÉCNICOS</td>
+    <td class="doc-cell">Doc. nº - ${docN}</td>
+  </tr>
+  <tr><td class="doc-cell">Pág. ${pag} de ${total}</td></tr>
+</table>`;
+  }
+
+  const dadosHTML = `<table class="dados">
+  <tr><td colspan="4"><strong>CLIENTE:</strong> ${r.cliente||'—'}</td></tr>
+  <tr>
+    <td colspan="2"><strong>PROJETO / CC:</strong> ${r.projetoNome||'—'} / ${r.cc||'—'}</td>
+    <td><strong>CIDADE:</strong> São Paulo</td><td><strong>UF:</strong> SP</td>
+  </tr>
+  <tr>
+    <td><strong>DATA:</strong> ${dtBR}</td>
+    <td><strong>HORA:</strong> ${hrInicio}</td>
+    <td><strong>GESTOR:</strong> ${r.gestor||'—'}</td>
+    <td><strong>TÉCNICO:</strong> ${r.tecnico||'—'}</td>
+  </tr>
+  <tr><td colspan="4"><strong>SISTEMA:</strong> ■ ${r.disciplina||'—'}</td></tr>
+  <tr><td colspan="4">
+    <strong>TIPO DE ATENDIMENTO:</strong>&nbsp;&nbsp;
+    ${['RDO','MAN. PREVENTIVA','MAN. CORRETIVA','VISTORIA TÉCNICA'].map(t=>`${t===(r.tipoAtendimento||'')?'■':'□'} ${t}`).join('&nbsp;&nbsp;&nbsp;')}
+  </td></tr>
+</table>`;
+
+  const rodapeHTML = `<div class="rodape-wrap"><table class="rodape">
+  <tr><td style="width:60%">CLIENTE: ${r.cliente||'—'} / OBRA: ${r.projetoNome||'—'}</td><td>ASSINATURA:</td></tr>
+  <tr><td>RESPONSÁVEIS PELO ATENDIMENTO: ${r.tecnico||'—'}</td><td>ASSINATURA:</td></tr>
+</table></div>`;
+
+  // ── Fotos → base64 ──
+  async function fotoParaBase64(f) {
+    if (f.dataUrl && f.dataUrl.startsWith('data:')) return f.dataUrl;
+    if (f.assetUrl) {
+      try {
+        const resp = await fetch(f.assetUrl);
+        if (!resp.ok) return null;
+        const blob = await resp.blob();
+        return await new Promise((res,rej)=>{ const rd=new FileReader(); rd.onload=()=>res(rd.result); rd.onerror=()=>rej(null); rd.readAsDataURL(blob); });
+      } catch(_) { return null; }
+    }
+    return null;
+  }
+
+  let fotosHTML = '';
+  let totalPaginas = 1;
+
+  if (r.fotos?.length) {
+    const fotasResolvidas = await Promise.all(r.fotos.map(async (f,i) => {
+      const b64 = await fotoParaBase64(f);
+      const legenda = f.name ? f.name.replace(/\.[^.]+$/,'') : `Foto ${i+1}`;
+      const temGPS = f.lat && f.lng;
+      const gpsTexto = temGPS
+        ? `📍 ${parseFloat(f.lat).toFixed(6)}, ${parseFloat(f.lng).toFixed(6)}${f.accuracy?` (±${f.accuracy}m)`:''}`
+        : '📍 GPS não disponível';
+      const gpsLink = temGPS ? `https://www.google.com/maps?q=${f.lat},${f.lng}` : null;
+      const hora = f.time || '';
+      if (b64) return `<div class="foto-item"><img src="${b64}" alt="${legenda}"><p class="foto-legenda"><strong>${legenda}</strong>${hora?' — '+hora:''}<br>${gpsLink?`<a href="${gpsLink}" target="_blank" style="color:#1a7ef7;text-decoration:none">${gpsTexto}</a>`:`<span style="color:#999">${gpsTexto}</span>`}</p></div>`;
+      return `<div class="foto-item foto-placeholder"><div class="foto-sem-img">📷 ${legenda}</div><p class="foto-legenda">${hora}<br>${gpsLink?`<a href="${gpsLink}" target="_blank" style="color:#1a7ef7;text-decoration:none">${gpsTexto}</a>`:`<span style="color:#999">${gpsTexto}</span>`}</p></div>`;
+    }));
+
+    const FOTOS_POR_PAG = 4;
+    const fotosPaginas = [];
+    for (let i=0; i<fotasResolvidas.length; i+=FOTOS_POR_PAG) fotosPaginas.push(fotasResolvidas.slice(i,i+FOTOS_POR_PAG));
+    totalPaginas = 1 + fotosPaginas.length;
+
+    fotosHTML = fotosPaginas.map((grupo,idx) => `
+      <div class="page-break"></div>
+      ${cabecalhoHTML(2+idx, totalPaginas, docNum, logoB64)}
+      ${dadosHTML}
+      <div class="secao">
+        <h2>5. RELATÓRIO FOTOGRÁFICO${fotosPaginas.length>1?` (${idx+1}/${fotosPaginas.length})`:''}</h2>
+        <div class="foto-grid">${grupo.join('')}</div>
+      </div>
+      ${rodapeHTML}`).join('');
+  }
+
+  // ── HTML final ──
+  const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Relatório ${r.disciplina||''} — ${r.projetoNome||''}</title>
+<style>
+  @page { size: A4; margin: 15mm 15mm 20mm 15mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 10pt; color: #000; background: #fff; }
+  .cabecalho { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+  .cabecalho td { border: 1px solid #000; padding: 4px 6px; font-size: 9pt; vertical-align: middle; }
+  .logo-cell { text-align: center; width: 110px; padding: 4px 6px !important; vertical-align: middle; }
+  .titulo-relatorio { text-align: center; font-weight: 700; font-size: 14pt; background: #D9D9D9; }
+  .doc-cell { font-size: 8.5pt; width: 130px; }
+  .dados { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+  .dados td { border: 1px solid #000; padding: 4px 7px; font-size: 9pt; }
+  .rodape { width: 100%; border-collapse: collapse; }
+  .rodape td { border: 1px solid #000; padding: 5px 8px; font-size: 9pt; }
+  .rodape-wrap { margin-top: 16px; }
+  .secao { margin: 14px 0; }
+  h2 { font-size: 10.5pt; font-weight: 700; margin-bottom: 6px; border-bottom: 1px solid #ccc; padding-bottom: 3px; }
+  p { margin-bottom: 5px; line-height: 1.5; font-size: 10pt; }
+  strong { font-weight: 700; }
+  .tabela { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 9.5pt; }
+  .tabela th { background: #D9D9D9; border: 1px solid #000; padding: 4px 8px; text-align: left; font-weight: 700; }
+  .tabela td { border: 1px solid #000; padding: 4px 8px; vertical-align: top; }
+  .tabela td.c { text-align: center; }
+  .tabela tr:nth-child(even) td { background: #F5F5F5; }
+  .status { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 8.5pt; font-weight: 600; }
+  .status-ok  { background: #D4EDDA; color: #155724; }
+  .status-wip { background: #FFF3CD; color: #856404; }
+  .status-pen { background: #F8D7DA; color: #721C24; }
+  .status-mat { background: #D1ECF1; color: #0C5460; }
+  .foto-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+  .foto-item { width: 48%; page-break-inside: avoid; }
+  .foto-item img { width: 100%; height: auto; display: block; border: 1px solid #ccc; border-radius: 3px; }
+  .foto-placeholder { background: #f0f0f0; border: 1px dashed #999; border-radius: 3px; min-height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .foto-sem-img { font-size: 20pt; text-align: center; padding: 20px; color: #888; }
+  .foto-legenda { font-size: 8pt; color: #555; margin-top: 4px; line-height: 1.4; }
+  .assinaturas { display: flex; gap: 30px; margin-top: 20px; }
+  .assin-box { flex: 1; border-top: 1px solid #000; padding-top: 6px; font-size: 9pt; text-align: center; }
+  .no-print { display: none; }
+  @media print { .no-print { display: none !important; } body { margin: 0; } .page-break { page-break-before: always; } }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = 'https://ojdhovliloxdqbaannrm.supabase.co/rest/v1/';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZGhvdmxpbG94ZHFiYWFubnJtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI5OTM0MDEsImV4cCI6MjEwODU2OTQwMX0.LMH4Myvb1E0eqzHozGsaVmtLOt2Kn8ZR1bARTL7ptM0';
+window._sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+</script>
+</head>
+<body>
+
+${cabecalhoHTML(1, totalPaginas, docNum, logoB64)}
+
+${dadosHTML}
+
+<div class="secao">
+  <h2>1. IDENTIFICAÇÃO DO SERVIÇO</h2>
+  <table class="tabela">
+    <tr><th style="width:30%">Campo</th><th>Informação</th></tr>
+    <tr><td><strong>Tipo de Atendimento</strong></td><td>${r.tipoAtendimento||'—'}</td></tr>
+    <tr><td><strong>Disciplina</strong></td><td>${r.disciplina||'—'}</td></tr>
+    <tr><td><strong>Atividade</strong></td><td>${r.atividade||'—'}</td></tr>
+    <tr><td><strong>Andar / Pavimento</strong></td><td>${r.andar||'—'}</td></tr>
+    <tr><td><strong>Área / Zona</strong></td><td>${r.area||'—'}</td></tr>
+    <tr><td><strong>Sala / Ambiente</strong></td><td>${r.sala||'—'}</td></tr>
+    <tr><td><strong>Status</strong></td><td><span class="status ${r.status==='Concluído'?'status-ok':r.status==='Em andamento'?'status-wip':r.status==='Pendência'?'status-pen':'status-mat'}">${statusTxt}</span></td></tr>
+    <tr><td><strong>Data / Hora</strong></td><td>${dtBR} às ${hrInicio}</td></tr>
+    <tr><td><strong>Técnico Responsável</strong></td><td>${r.tecnico||'—'}</td></tr>
+    <tr><td><strong>Gestor</strong></td><td>${r.gestor||'—'}</td></tr>
+  </table>
+</div>
+
+<div class="secao">
+  <h2>2. DESCRIÇÃO DAS ATIVIDADES REALIZADAS</h2>
+  <p>${r.obs ? r.obs.replace(/\n/g,'<br>') : '<em>Nenhuma observação registrada.</em>'}</p>
+</div>
+
+<div class="secao">
+  <h2>3. RESULTADO</h2>
+  <table class="tabela">
+    <tr><th>Item</th><th>Verificação</th><th style="width:120px">Resultado</th></tr>
+    <tr><td class="c">01</td><td>Execução da atividade: ${r.atividade||'—'}</td><td class="c"><span class="status ${r.status==='Concluído'?'status-ok':'status-wip'}">${r.status==='Concluído'?'✓ OK':'Em Andamento'}</span></td></tr>
+    ${r.fotos?.length?`<tr><td class="c">02</td><td>Registro fotográfico</td><td class="c"><span class="status status-ok">✓ OK (${r.fotos.length} foto${r.fotos.length>1?'s':''})</span></td></tr>`:''}
+  </table>
+</div>
+
+<div class="secao">
+  <h2>4. PENDÊNCIAS / OBSERVAÇÕES</h2>
+  <p>${r.status==='Pendência'?(r.obs||'Pendência registrada.'):r.status==='Aguardando material'?'Serviço aguardando fornecimento de material.':'Nenhuma pendência registrada.'}</p>
+</div>
+
+${fotosHTML}
+
+<div class="assinaturas">
+  <div class="assin-box"><strong>${r.tecnico||'Técnico Responsável'}</strong><br><span style="font-size:8.5pt;color:#555">Responsável pelo Atendimento</span></div>
+  <div class="assin-box"><strong>${r.cliente||'Cliente'}</strong><br><span style="font-size:8.5pt;color:#555">Assinatura e Carimbo do Cliente</span></div>
+</div>
+
+${rodapeHTML}
+
+</body>
+</html>`;
+  return html;
+}
+
+// ── EXPORTAR / VER RELATÓRIO NA TELA DE IMPRESSÃO ─────────────────────────
+async function exportRelatorioPDF(id) {
+  const r = reports.find(x=>x.id===id);
+  if (!r) return;
+
+  const btn = document.querySelector(`[onclick="exportRelatorioPDF('${id}')"]`);
+  if (btn) { btn.disabled = true; btn.textContent = 'Gerando…'; }
+
+  try {
+    toast('Gerando relatório…', 'info');
+    const html = await gerarHTMLRelatorio(r);
+    _printHTML = html;
+
+    const dtBR = new Date(r.createdAt).toLocaleDateString('pt-BR');
+
+    const body  = document.getElementById('s-print-body');
+    const title = document.getElementById('s-print-title');
+
+    if (!body) { toast('Erro: tela de impressão não encontrada.', 'error'); return; }
+
+    // Extrair <body> do HTML gerado para injetar inline no app
+    const bodyMatch   = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+    const bodyContent = bodyMatch ? bodyMatch[1] : html;
+
+    // Injetar estilos do relatório (prefixados para isolar do app)
+    const existingStyle = document.getElementById('print-styles');
+    if (existingStyle) existingStyle.remove(); // sempre atualizar
+    const styleMatch = html.match(/<style>([\s\S]*?)<\/style>/i);
+    if (styleMatch) {
+      const st = document.createElement('style');
+      st.id = 'print-styles';
+      st.textContent = styleMatch[1]
+        .replace(/@page[^{]*\{[^}]*\}/g, '')
+        .replace(/\bbody\s*\{/g, '#s-print-body {');
+      document.head.appendChild(st);
+    }
+
+    body.innerHTML = bodyContent;
+    if (title) title.textContent = `${r.disciplina||''} — ${r.projetoNome||''} — ${dtBR}`;
+
+    closeModal('modal-report');
+    showScreen('s-print');
+    document.getElementById('content').scrollTop = 0;
+    toast('Relatório aberto — use "Salvar PDF / Imprimir" para exportar', 'success');
+
+  } catch(e) {
+    toast('Erro ao gerar relatório: ' + (e?.message || e), 'error');
+    console.error('exportRelatorioPDF:', e);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" style="width:14px;height:14px;margin-right:4px;vertical-align:-2px"><path d="M4 1h6l3 3v11H3V1zm6 0v3h3M5 9h6M5 11.5h4"/></svg> Ver Relatório'; }
+  }
+}
+
+async function downloadRelatorioPDF() {
+  if (!_printHTML) { toast('Nenhum relatório carregado.', 'error'); return; }
+  const btn = document.getElementById('btn-download-report');
+  if (btn) { btn.disabled = true; btn.textContent = 'Preparando…'; }
+  try {
+    const blob = new Blob([_printHTML], { type: 'text/html;charset=utf-8' });
+    const tit  = (document.getElementById('s-print-title')?.textContent || 'relatorio')
+      .replace(/[^a-zA-Z0-9\-_]/g, '_').slice(0, 60);
+    const url  = URL.createObjectURL(blob);
+    const a    = Object.assign(document.createElement('a'), { href: url, download: `${tit}.html` });
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    toast('✅ Arquivo baixado! Abra no navegador → Ctrl+P → Salvar como PDF', 'success');
+  } catch(e) {
+    const msg = e?.message || String(e);
+    if (msg.includes('declined') || msg.includes('cancel')) {
+      toast('Download cancelado.', 'info');
+    } else {
+      toast('Erro ao salvar: ' + msg, 'error');
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" style="width:14px;height:14px"><path d="M8 1v9M4 6l4 4 4-4M2 13h12"/></svg> Salvar PDF / Imprimir'; }
+  }
+}
+
+function closePrintScreen() {
+  const body = document.getElementById('s-print-body');
+  if (body) body.innerHTML = '';
+  _printHTML = '';
+  showScreen('s-reports');
+}
+
+// ═══════════════════════════════════════════════════════
+//  PROJETOS (GESTOR)
+// ═══════════════════════════════════════════════════════
+function renderProjects() {
+  const tbody = document.getElementById('projects-tbody');
+  if (!projects.length) { tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text2);padding:24px">Nenhum projeto.</td></tr>`; return; }
+  tbody.innerHTML = projects.map(p => `
+    <tr>
+      <td><strong>${p.nome}</strong></td>
+      <td>${p.cliente}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:12px">${p.cc}</td>
+      <td>${p.gestor}</td>
+      <td>
+        ${p.odDriveId
+          ? `<span class="chip chip-od">✓ Configurado</span>${p.odPath?`<br><span style="font-size:10px;color:var(--text2);font-family:'JetBrains Mono',monospace;display:block;margin-top:3px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.odPath}">${p.odPath}</span>`:''}`
+          : `<span class="chip chip-warn">⚠ Pendente</span>`}
+      </td>
+      <td><span class="chip chip-blue">${(p.users||[]).length}</span></td>
+      <td><span class="chip chip-green">${reports.filter(r=>r.projetoId===p.id).length}</span></td>
+      <td>
+        <button class="btn btn-secondary btn-sm" onclick="editProject('${p.id}')">Editar</button>
+        <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="deleteProject('${p.id}')">✕</button>
+      </td>
+    </tr>`).join('');
+}
+
+function openProjectModal() {
+  ['proj-nome','proj-cc','proj-cliente','proj-gestor','proj-gestor-email','proj-users','proj-od-path','proj-od-drive-id','proj-od-item-id'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('proj-status-field').value = 'Ativo';
+  document.getElementById('proj-edit-id').value = '';
+  document.getElementById('proj-modal-title').textContent = 'Novo Projeto';
+  document.getElementById('od-validation-status').style.display = 'none';
+  // Garantir que campos de ID estejam editáveis
+  unlockOdFields();
+  document.getElementById('modal-project').style.display = 'flex';
+}
+
+function editProject(id) {
+  const p = projects.find(x=>x.id===id);
+  if (!p) return;
+  document.getElementById('proj-nome').value        = p.nome;
+  document.getElementById('proj-cc').value          = p.cc;
+  document.getElementById('proj-cliente').value     = p.cliente;
+  document.getElementById('proj-gestor').value      = p.gestor;
+  document.getElementById('proj-gestor-email').value= p.gestorEmail||'';
+  document.getElementById('proj-status-field').value= p.status||'Ativo';
+  document.getElementById('proj-users').value       = (p.users||[]).join(', ');
+  document.getElementById('proj-od-path').value     = p.odPath||'';
+  document.getElementById('proj-od-drive-id').value = p.odDriveId||'';
+  document.getElementById('proj-od-item-id').value  = p.odItemId||'';
+  document.getElementById('proj-edit-id').value     = id;
+  document.getElementById('proj-modal-title').textContent = 'Editar Projeto';
+  if (p.odDriveId) showOdValidated(p.odPath, true);
+  else document.getElementById('od-validation-status').style.display = 'none';
+  document.getElementById('modal-project').style.display = 'flex';
+}
+
+// ── VALIDAR CAMINHO ONEDRIVE ──
+async function validateOdPath() {
+  const path = document.getElementById('proj-od-path').value.trim();
+  if (!path) { toast('Informe o caminho OneDrive.','error'); return; }
+
+  const btn = document.getElementById('btn-validate-od');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+
+  const statusEl = document.getElementById('od-validation-status');
+  statusEl.style.display = 'block';
+  statusEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2)"><span class="spinner"></span> Buscando pasta no SharePoint/OneDrive…</div>`;
+
+  try {
+    // Extrair último segmento do caminho como nome de busca
+    const segments = path.replace(/\\/g,'/').split('/').map(s=>s.trim()).filter(Boolean);
+    // Tenta do mais específico para o mais genérico
+    let found = null;
+    for (let i = segments.length - 1; i >= 0 && !found; i--) {
+      const folderName = segments[i];
+      if (!folderName || folderName.startsWith('http')) continue;
+      const token = currentUser?.graph_token;
+      if (!token) throw new Error('Token Microsoft não disponível. Configure o login Microsoft no perfil do gestor.');
+      // Busca pela pasta via Graph API usando search
+      const searchResp = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${document.getElementById('proj-od-drive').value}/root/search(q='${encodeURIComponent(folderName)}')`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      const raw = await searchResp.json();
+
+      // Normalizar: pode vir como array, objeto com .items, objeto direto ou string JSON
+      let items = [];
+      if (Array.isArray(raw))                   items = raw;
+      else if (Array.isArray(raw?.items))        items = raw.items;
+      else if (Array.isArray(raw?.value))        items = raw.value;
+      else if (raw?.driveId || raw?.id)          items = [raw];
+      else if (typeof raw === 'string') {
+        try { const p = JSON.parse(raw); items = Array.isArray(p) ? p : (p.items||p.value||[p]); } catch(_) {}
+      }
+
+      // Campos retornados pelo sharepoint_folder_search
+      for (const item of items) {
+        const dId  = item.driveId || item.parentReference?.driveId || '';
+        const iId  = item.itemId  || item.id || '';
+        const wUrl = item.webUrl  || '';
+
+        if (dId && iId) {
+          // Preferir o item cujo nome ou webUrl bate melhor com o path informado
+          const nameMatch = path.toLowerCase().includes((item.name||'').toLowerCase());
+          const urlMatch  = path.toLowerCase().includes((wUrl||'').toLowerCase().replace('https://',''));
+          if (nameMatch || urlMatch || items.length === 1) {
+            found = { driveId: dId, itemId: iId, webUrl: wUrl, name: item.name||'' };
+            break;
+          }
+          // Guarda o primeiro válido como fallback
+          if (!found) found = { driveId: dId, itemId: iId, webUrl: wUrl, name: item.name||'' };
+        }
+      }
+    }
+
+    if (found) {
+      document.getElementById('proj-od-drive-id').value = found.driveId;
+      document.getElementById('proj-od-item-id').value  = found.itemId;
+      showOdValidated(found.webUrl || path, false);
+      toast(`Pasta "${found.name||'OneDrive'}" encontrada e validada!`, 'od');
+    } else {
+      // Não encontrou — liberar campos para preenchimento manual
+      unlockOdFields();
+      statusEl.innerHTML = `<div style="background:var(--warn-dim);border:1px solid rgba(247,164,26,0.4);border-radius:var(--radius);padding:12px 14px;font-size:12px">
+        <strong style="color:var(--warn)">⚠ Pasta não encontrada automaticamente</strong><br>
+        <span style="color:var(--text2)">Preencha o <strong>Drive ID</strong> e o <strong>Item ID</strong> manualmente nos campos abaixo.<br>
+        Para obter os valores: abra a pasta no SharePoint → clique em <em>⋯ Detalhes</em> → copie o ID da biblioteca (Drive ID) e o ID do item (Item ID).<br>
+        Ou acesse a URL e extraia os parâmetros <code>driveId</code> e <code>id</code>.</span>
+      </div>`;
+    }
+  } catch(e) {
+    // Erro de conexão — liberar campos para entrada manual
+    unlockOdFields();
+    statusEl.innerHTML = `<div style="background:var(--danger-dim);border:1px solid rgba(229,83,75,0.4);border-radius:var(--radius);padding:12px 14px;font-size:12px">
+      <strong style="color:var(--danger)">Não foi possível conectar ao OneDrive</strong><br>
+      <span style="color:var(--text2)">${e.message||'Verifique se o Microsoft 365 está conectado em Configurações → Conectores.'}</span><br>
+      <span style="color:var(--text3);font-size:11px;margin-top:6px;display:block">Você pode preencher o Drive ID e Item ID manualmente abaixo e salvar o projeto normalmente.</span>
+    </div>`;
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = 'Validar';
+}
+
+// Libera os campos readonly para edição manual
+function unlockOdFields() {
+  document.getElementById('proj-od-drive-id').removeAttribute('readonly');
+  document.getElementById('proj-od-drive-id').style.color = '';
+  document.getElementById('proj-od-drive-id').placeholder = 'Cole o Drive ID aqui (ex: b!Ab12Cd...)';
+  document.getElementById('proj-od-item-id').removeAttribute('readonly');
+  document.getElementById('proj-od-item-id').style.color = '';
+  document.getElementById('proj-od-item-id').placeholder = 'Cole o Item ID da pasta aqui';
+}
+
+function showOdValidated(webUrl, alreadySaved) {
+  const statusEl = document.getElementById('od-validation-status');
+  statusEl.style.display = 'block';
+  statusEl.innerHTML = `<div style="background:var(--success-dim);border:1px solid rgba(45,186,101,0.4);border-radius:var(--radius);padding:12px 14px;font-size:12px">
+    <strong style="color:var(--success)">✓ Repositório OneDrive ${alreadySaved?'configurado':'validado'}</strong><br>
+    <span style="color:var(--text2)">Os relatórios serão organizados em subpastas por dia (ex: 2024-10-22/).</span>
+    ${webUrl ? `<br><button class="btn btn-od btn-sm" style="margin-top:6px" onclick="abrirLink('${webUrl}')">Abrir pasta no OneDrive →</button>` : ''}
+  </div>`;
+}
+
+async function saveProject() {
+  const nome = document.getElementById('proj-nome').value.trim();
+  const cc   = document.getElementById('proj-cc').value.trim();
+  if (!nome||!cc) { toast('Nome e CC são obrigatórios.','error'); return; }
+  const editId = document.getElementById('proj-edit-id').value;
+  const proj = {
+    id: editId || 'p'+Date.now(),
+    nome, cc,
+    cliente:     document.getElementById('proj-cliente').value.trim(),
+    gestor:      document.getElementById('proj-gestor').value.trim(),
+    gestorEmail: document.getElementById('proj-gestor-email').value.trim(),
+    status:      document.getElementById('proj-status-field').value,
+    users:       document.getElementById('proj-users').value.split(',').map(s=>s.trim()).filter(Boolean),
+    odPath:      document.getElementById('proj-od-path').value.trim(),
+    odDriveId:   document.getElementById('proj-od-drive-id').value.trim(),
+    odItemId:    document.getElementById('proj-od-item-id').value.trim(),
+  };
+  if (editId) { const i=projects.findIndex(x=>x.id===editId); if(i>=0) projects[i]=proj; }
+  else projects.push(proj);
+  try { await window._sb.from('projects').upsert(proj); } catch(e) {}
+  closeModal('modal-project');
+  toast('Projeto salvo.','success');
+  renderProjects();
+}
+
+async function deleteProject(id) {
+  const proj = projects.find(x=>x.id===id);
+  const ok = await confirmar(`Excluir o projeto "${proj?.nome||id}"?`, 'Excluir projeto');
+  if (!ok) return;
+  projects = projects.filter(p=>p.id!==id);
+  try { await window._sb.from('projects').delete().eq('id', id); } catch(e) {}
+  toast('Projeto removido.','info');
+  renderProjects();
+}
+
+// ═══════════════════════════════════════════════════════
+//  USUÁRIOS
+// ═══════════════════════════════════════════════════════
+function renderUsers() {
+  if (!users.length) {
+    document.getElementById('users-tbody').innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:32px">Nenhum usuário cadastrado.</td></tr>`;
+    return;
+  }
+  document.getElementById('users-tbody').innerHTML = users.map(u=>`
+    <tr>
+      <td><strong>${u.name}</strong></td>
+      <td style="font-size:12px;color:var(--text2)">${u.email}</td>
+      <td>${u.role==='gestor'?'<span class="chip chip-blue">Gestor</span>':'<span class="chip chip-green">Técnico</span>'}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px">
+          <code id="pwd-${u.id}" style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--surface2);padding:2px 7px;border-radius:4px;letter-spacing:0.5px;display:none">${u.senha||'—'}</code>
+          <span id="pwd-mask-${u.id}" style="font-size:13px;color:var(--text3);letter-spacing:2px">••••••</span>
+          <button class="btn btn-secondary btn-sm" style="padding:2px 7px;font-size:11px" onclick="toggleSenha('${u.id}')" title="Mostrar/ocultar senha">👁</button>
+        </div>
+      </td>
+      <td><span class="chip chip-blue">${projects.filter(p=>(p.users||[]).includes(u.email)).length}</span></td>
+      <td>
+        <button class="btn btn-secondary btn-sm" onclick="editUser('${u.id}')">Editar</button>
+        <button class="btn btn-od btn-sm" style="margin-left:4px" onclick="resetSenha('${u.id}')">🔑 Senha</button>
+        <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="deleteUser('${u.id}')">✕</button>
+      </td>
+    </tr>`).join('');
+}
+
+function toggleSenha(uid) {
+  const pwd  = document.getElementById('pwd-' + uid);
+  const mask = document.getElementById('pwd-mask-' + uid);
+  if (!pwd || !mask) return;
+  const show = pwd.style.display === 'none';
+  pwd.style.display  = show ? 'inline' : 'none';
+  mask.style.display = show ? 'none'   : 'inline';
+}
+
+function openUserModal() {
+  // Novo usuário
+  document.getElementById('user-edit-id').value = '';
+  document.getElementById('user-nome').value = '';
+  document.getElementById('user-email').value = '';
+  document.getElementById('user-email').disabled = false;
+  document.getElementById('user-perfil').value = 'tecnico';
+  document.getElementById('user-senha').value = '';
+  document.getElementById('user-modal-title').textContent = 'Novo Usuário';
+  document.getElementById('user-senha-label').innerHTML = 'Senha * <span style="font-weight:400;color:var(--text3)">(definida pelo gestor)</span>';
+  document.getElementById('user-save-btn').textContent = 'Criar Usuário';
+  document.getElementById('user-reset-box').style.display = 'none';
+  document.getElementById('modal-user').style.display = 'flex';
+}
+
+function editUser(id) {
+  const u = users.find(x=>x.id===id);
+  if (!u) return;
+  document.getElementById('user-edit-id').value = id;
+  document.getElementById('user-nome').value = u.name;
+  document.getElementById('user-email').value = u.email;
+  document.getElementById('user-email').disabled = true; // e-mail não pode mudar
+  document.getElementById('user-perfil').value = u.role;
+  document.getElementById('user-senha').value = '';
+  document.getElementById('user-modal-title').textContent = 'Editar Usuário';
+  document.getElementById('user-senha-label').innerHTML = 'Nova senha <span style="font-weight:400;color:var(--text3)">(deixe em branco para manter)</span>';
+  document.getElementById('user-save-btn').textContent = 'Salvar Alterações';
+  document.getElementById('user-reset-box').style.display = 'none';
+  document.getElementById('modal-user').style.display = 'flex';
+}
+
+function resetSenha(id) {
+  const u = users.find(x=>x.id===id);
+  if (!u) return;
+  document.getElementById('user-edit-id').value = id;
+  document.getElementById('user-nome').value = u.name;
+  document.getElementById('user-email').value = u.email;
+  document.getElementById('user-email').disabled = true;
+  document.getElementById('user-perfil').value = u.role;
+  document.getElementById('user-senha').value = gerarSenha(false);
+  document.getElementById('user-modal-title').textContent = `Redefinir Senha — ${u.name}`;
+  document.getElementById('user-senha-label').innerHTML = 'Nova senha *';
+  document.getElementById('user-save-btn').textContent = 'Salvar Nova Senha';
+  document.getElementById('user-reset-box').style.display = 'block';
+  document.getElementById('modal-user').style.display = 'flex';
+}
+
+function gerarSenha(preencher = true) {
+  const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789!@#';
+  let pwd = '';
+  for (let i = 0; i < 10; i++) pwd += chars[Math.floor(Math.random() * chars.length)];
+  if (preencher) document.getElementById('user-senha').value = pwd;
+  return pwd;
+}
+
+async function saveUser() {
+  const editId = document.getElementById('user-edit-id').value;
+  const nome   = document.getElementById('user-nome').value.trim();
+  const email  = document.getElementById('user-email').value.trim().toLowerCase();
+  const role   = document.getElementById('user-perfil').value;
+  const senha  = document.getElementById('user-senha').value;
+
+  if (!nome || (!editId && !email)) { toast('Nome e e-mail são obrigatórios.','error'); return; }
+  if (!editId && !senha) { toast('Defina uma senha para o novo usuário.','error'); return; }
+
+  // Verificar e-mail duplicado ao criar
+  if (!editId && users.find(u => u.email === email)) {
+    toast('Já existe um usuário com este e-mail.','error'); return;
+  }
+
+  if (editId) {
+    // Edição
+    const idx = users.findIndex(u=>u.id===editId);
+    if (idx < 0) return;
+    users[idx].name = nome;
+    users[idx].role = role;
+    if (senha) users[idx].senha = senha;
+    try { await db.collection('users').doc(editId).set(users[idx]); } catch(e) {} }
+    toast(`Usuário ${nome} atualizado.`, 'success');
+  } else {
+    // Criação
+    const u = { id:'u'+Date.now(), name:nome, email, role, senha };
+    users.push(u);
+    try { await db.collection('users').doc(u.id).set(u); } catch(e) {} }
+    toast(`Usuário ${nome} criado. Informe a senha: ${senha}`, 'success');
+  }
+
+  closeModal('modal-user');
+  renderUsers();
+}
+
+async function deleteUser(id) {
+  const u = users.find(x=>x.id===id);
+  if (!u) return;
+  // Impedir exclusão do próprio gestor logado
+  if (u.email === currentUser.email) { toast('Você não pode excluir seu próprio usuário.','error'); return; }
+  const ok = await confirmar(`Excluir o usuário "${u.name}"?`, 'Excluir usuário');
+  if (!ok) return;
+  users = users.filter(x=>x.id!==id);
+  try { await window._sb.from('users').delete().eq('id', id); } catch(e) {}
+  toast(`Usuário ${u.name} removido.`, 'info');
+  renderUsers();
+}
+
+// ── SETUP INICIAL (primeiro acesso — sem nenhum usuário cadastrado) ──
+function showSetupScreen() {
+  document.getElementById('screen-login').style.display = 'none';
+  document.getElementById('screen-setup').style.display = 'flex';
+}
+
+async function doSetup() {
+  const nome  = document.getElementById('setup-nome').value.trim();
+  const email = document.getElementById('setup-email').value.trim().toLowerCase();
+  const senha = document.getElementById('setup-senha').value;
+  const conf  = document.getElementById('setup-conf').value;
+  const err   = document.getElementById('setup-error');
+  err.style.display = 'none';
+
+  if (!nome || !email || !senha) { err.textContent = 'Preencha todos os campos.'; err.style.display = 'block'; return; }
+  if (senha !== conf) { err.textContent = 'As senhas não coincidem.'; err.style.display = 'block'; return; }
+  if (senha.length < 6) { err.textContent = 'A senha deve ter pelo menos 6 caracteres.'; err.style.display = 'block'; return; }
+
+  const u = { id:'u'+Date.now(), name:nome, email, role:'gestor', senha };
+  {
+    try { await db.collection('users').doc(u.id).set(u); }
+    catch(e) { err.textContent = 'Erro ao salvar. Tente novamente.'; err.style.display = 'block'; return; }
+  }
+  users = [u];
+
+  document.getElementById('screen-setup').style.display = 'none';
+  document.getElementById('screen-login').style.display = 'flex';
+  document.getElementById('login-email').value = email;
+  toast('Conta criada! Faça login para continuar.', 'success');
+}
+
+// ═══════════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════════
+function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+function statusChip(s) {
+  const m = { 'Concluído':'chip-green','Em andamento':'chip-blue','Pendência':'chip-warn','Aguardando material':'chip-warn' };
+  return `<span class="chip ${m[s]||'chip-blue'}">${s||'—'}</span>`;
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  try { return new Date(iso).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
+  catch(e) { return iso; }
+}
+
+function toast(msg, type='info') {
+  const wrap = document.getElementById('toast');
+  const el = document.createElement('div');
+  el.className = `toast-item ${type}`;
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), 5000);
+}
+
+
+// ═══════════════════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  initCapabilities().catch(()=>{});
+});
+</script>
+</body>
+</html>
