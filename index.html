@@ -688,23 +688,12 @@ let _printHTML = '';   // HTML do último relatório gerado, para download
 // ═══════════════════════════════════════════════════════
 //  INIT CAPABILITIES
 // ═══════════════════════════════════════════════════════
-let assets = null; // capability assets para upload de fotos
-
 async function initCapabilities() {
   const saved = localStorage.getItem('drone_user');
   if (saved) {
     try { currentUser = JSON.parse(saved); showApp(); return; } catch(_) {}
   }
   document.getElementById('screen-login').style.display = 'flex';
-}
-
-
-}
-
-
-  }
-  users = [admin];
-  // Não exibe tela de setup — admin já está criado; apenas carrega o login normal
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1438,12 +1427,6 @@ async function gerarHTMLRelatorio(r) {
   .no-print { display: none; }
   @media print { .no-print { display: none !important; } body { margin: 0; } .page-break { page-break-before: always; } }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
-const SUPABASE_URL = 'https://ojdhovliloxdqbaannrm.supabase.co/rest/v1/';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZGhvdmxpbG94ZHFiYWFubnJtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI5OTM0MDEsImV4cCI6MjEwODU2OTQwMX0.LMH4Myvb1E0eqzHozGsaVmtLOt2Kn8ZR1bARTL7ptM0';
-window._sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-</script>
 </head>
 <body>
 
