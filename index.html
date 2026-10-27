@@ -1960,7 +1960,22 @@ async function saveProject() {
   };
   if (editId) { const i=projects.findIndex(x=>x.id===editId); if(i>=0) projects[i]=proj; }
   else projects.push(proj);
-  try { await window._sb.from('projects').upsert(proj); } catch(e) {}
+  try {
+    const { error } = await window._sb.from('projects').upsert({
+      id:           proj.id,
+      nome:         proj.nome,
+      cc:           proj.cc,
+      cliente:      proj.cliente,
+      gestor:       proj.gestor,
+      gestor_email: proj.gestorEmail,
+      status:       proj.status,
+      users:        proj.users,
+      od_path:      proj.odPath,
+      od_drive_id:  proj.odDriveId,
+      od_item_id:   proj.odItemId,
+    });
+    if (error) { toast('Erro ao salvar projeto: ' + error.message, 'error'); return; }
+  } catch(e) { toast('Erro: ' + (e.message||e), 'error'); return; }
   closeModal('modal-project');
   toast('Projeto salvo.','success');
   renderProjects();
