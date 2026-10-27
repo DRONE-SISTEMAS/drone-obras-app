@@ -294,6 +294,10 @@
         <div class="avatar" id="topbar-avatar">?</div>
         <span id="topbar-name">…</span>
       </div>
+      <button id="btn-ms-connect" onclick="iniciarLoginMicrosoft()" style="display:none;background:#0078d4;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;margin-right:4px">
+        <svg viewBox="0 0 21 21" style="width:13px;height:13px;vertical-align:-2px;margin-right:3px"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
+        Conectar OneDrive
+      </button>
       <button class="btn-logout" onclick="doLogout()">Sair</button>
     </div>
   </div>
@@ -671,9 +675,147 @@
 <script>
 // ── SUPABASE ─────────────────────────────────────────
 // !! SUBSTITUA PELAS SUAS CREDENCIAIS !!
-const SUPABASE_URL = 'https://ojdhovliloxdqbaannrm.supabase.co/rest/v1/';
-const SUPABASE_KEY = 'SeyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZGhvdmxpbG94ZHFiYWFubnJtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI5OTM0MDEsImV4cCI6MjEwODU2OTQwMX0.LMH4Myvb1E0eqzHozGsaVmtLOt2Kn8ZR1bARTL7ptM0';
+const SUPABASE_URL = 'https://SEU_PROJETO.supabase.co';
+const SUPABASE_KEY = 'SUA_CHAVE_ANON_PUBLICA';
 window._sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ── AZURE / MICROSOFT GRAPH ───────────────────────────
+// !! SUBSTITUA PELO SEU CLIENT ID DO AZURE !!
+const AZURE_CLIENT_ID  = '4735f02f-bb38-46f6-977e-c5a3ed3b6e45';
+const AZURE_REDIRECT   = window.location.origin + '/';  // URL do app no Vercel
+const AZURE_SCOPES     = 'Files.ReadWrite Sites.ReadWrite.All User.Read offline_access';
+
+// ── OAUTH PKCE — HELPERS ──────────────────────────────
+function gerarCodeVerifier() {
+  const arr = new Uint8Array(48);
+  crypto.getRandomValues(arr);
+  return btoa(String.fromCharCode(...arr)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+async function gerarCodeChallenge(verifier) {
+  const enc  = new TextEncoder().encode(verifier);
+  const hash = await crypto.subtle.digest('SHA-256', enc);
+  return btoa(String.fromCharCode(...new Uint8Array(hash))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+
+async function iniciarLoginMicrosoft() {
+  const verifier   = gerarCodeVerifier();
+  const challenge  = await gerarCodeChallenge(verifier);
+  sessionStorage.setItem('pkce_verifier', verifier);
+  sessionStorage.setItem('ms_user_id', currentUser.id);
+
+  const params = new URLSearchParams({
+    client_id:             AZURE_CLIENT_ID,
+    response_type:         'code',
+    redirect_uri:          AZURE_REDIRECT,
+    scope:                 AZURE_SCOPES,
+    response_mode:         'query',
+    code_challenge:        challenge,
+    code_challenge_method: 'S256',
+    prompt:                'select_account',
+  });
+  window.location.href = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params}`;
+}
+
+async function trocarCodePorToken(code) {
+  const verifier = sessionStorage.getItem('pkce_verifier');
+  const userId   = sessionStorage.getItem('ms_user_id');
+  if (!verifier || !userId) return;
+
+  const resp = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id:     AZURE_CLIENT_ID,
+      grant_type:    'authorization_code',
+      code,
+      redirect_uri:  AZURE_REDIRECT,
+      code_verifier: verifier,
+      scope:         AZURE_SCOPES,
+    }),
+  });
+  const data = await resp.json();
+  if (data.access_token) {
+    // Salvar token no Supabase
+    await window._sb.from('users').update({
+      graph_token:         data.access_token,
+      graph_refresh_token: data.refresh_token || null,
+      graph_expires_at:    data.expires_in ? new Date(Date.now() + data.expires_in * 1000).toISOString() : null,
+    }).eq('id', userId);
+
+    // Atualizar currentUser em memória e localStorage
+    if (currentUser && currentUser.id === userId) {
+      currentUser.graph_token = data.access_token;
+      localStorage.setItem('drone_user', JSON.stringify(currentUser));
+    }
+
+    sessionStorage.removeItem('pkce_verifier');
+    sessionStorage.removeItem('ms_user_id');
+    toast('✅ Microsoft conectado! OneDrive disponível.', 'success');
+    atualizarBotaoMicrosoft();
+
+    // Limpar o ?code= da URL sem recarregar
+    window.history.replaceState({}, document.title, window.location.pathname);
+  } else {
+    toast('Erro ao conectar Microsoft: ' + (data.error_description || data.error), 'error');
+  }
+}
+
+async function renovarTokenMicrosoft() {
+  const refreshToken = currentUser?.graph_refresh_token;
+  if (!refreshToken) return false;
+  const resp = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id:     AZURE_CLIENT_ID,
+      grant_type:    'refresh_token',
+      refresh_token: refreshToken,
+      scope:         AZURE_SCOPES,
+    }),
+  });
+  const data = await resp.json();
+  if (data.access_token) {
+    currentUser.graph_token         = data.access_token;
+    currentUser.graph_refresh_token = data.refresh_token || refreshToken;
+    currentUser.graph_expires_at    = new Date(Date.now() + data.expires_in * 1000).toISOString();
+    localStorage.setItem('drone_user', JSON.stringify(currentUser));
+    await window._sb.from('users').update({
+      graph_token:         data.access_token,
+      graph_refresh_token: currentUser.graph_refresh_token,
+      graph_expires_at:    currentUser.graph_expires_at,
+    }).eq('id', currentUser.id);
+    return true;
+  }
+  return false;
+}
+
+async function getGraphToken() {
+  if (!currentUser?.graph_token) return null;
+  // Verificar se expirou (com 5 min de margem)
+  const expires = currentUser.graph_expires_at ? new Date(currentUser.graph_expires_at) : null;
+  if (expires && expires < new Date(Date.now() + 5 * 60 * 1000)) {
+    const renovado = await renovarTokenMicrosoft();
+    if (!renovado) return null;
+  }
+  return currentUser.graph_token;
+}
+
+function atualizarBotaoMicrosoft() {
+  const btn = document.getElementById('btn-ms-connect');
+  if (!btn) return;
+  if (currentUser?.role !== 'gestor') { btn.style.display = 'none'; return; }
+  if (currentUser?.graph_token) {
+    btn.style.display = 'inline-flex';
+    btn.style.background = '#107c41';
+    btn.innerHTML = `<svg viewBox="0 0 21 21" style="width:13px;height:13px;vertical-align:-2px;margin-right:3px"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg> OneDrive ✓`;
+    btn.onclick = null;
+  } else {
+    btn.style.display = 'inline-flex';
+    btn.style.background = '#0078d4';
+    btn.innerHTML = `<svg viewBox="0 0 21 21" style="width:13px;height:13px;vertical-align:-2px;margin-right:3px"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg> Conectar OneDrive`;
+    btn.onclick = iniciarLoginMicrosoft;
+  }
+}
 
 // ═══════════════════════════════════════════════════════
 //  ESTADO GLOBAL
@@ -694,11 +836,19 @@ function showApp() {
   document.getElementById('screen-setup').style.display = 'none';
   document.getElementById('screen-app').style.display   = 'flex';
   buildNav();
+  atualizarBotaoMicrosoft();
   loadProjects().then(() => {
     loadReports();
     loadUsers();
     showScreen('s-dashboard');
   });
+  // Atualizar topbar
+  const tu = document.getElementById('topbar-name');
+  const ta = document.getElementById('topbar-avatar');
+  const tr = document.getElementById('topbar-role');
+  if (tu) tu.textContent = currentUser.name || currentUser.email;
+  if (ta) ta.textContent = (currentUser.name||'?')[0].toUpperCase();
+  if (tr) tr.textContent = currentUser.role === 'gestor' ? 'Gestor' : 'Técnico';
 }
 
 function showLogin() {
@@ -708,6 +858,18 @@ function showLogin() {
 }
 
 async function initCapabilities() {
+  // Verificar se é callback OAuth do Microsoft
+  const params = new URLSearchParams(window.location.search);
+  const code   = params.get('code');
+  if (code) {
+    const saved = localStorage.getItem('drone_user');
+    if (saved) {
+      try { currentUser = JSON.parse(saved); } catch(_) {}
+    }
+    await trocarCodePorToken(code);
+    if (currentUser) { showApp(); return; }
+  }
+
   const saved = localStorage.getItem('drone_user');
   if (saved) {
     try { currentUser = JSON.parse(saved); showApp(); return; } catch(_) {}
@@ -1210,10 +1372,11 @@ async function uploadToOneDrive(report, proj) {
   addUpStep('Conectando ao OneDrive…', 'active');
   setUpBar(20);
 
-  // Token Microsoft Graph do gestor atual (armazenado no Supabase)
-  const token = currentUser?.graph_token;
+  // Token Microsoft Graph — obtido via OAuth (renova automaticamente se expirado)
+  const token = await getGraphToken();
   if (!token) {
-    addUpStep('Token Microsoft não disponível. Faça login com sua conta Microsoft.', 'err');
+    addUpStep('Token Microsoft não disponível. Clique em "Conectar OneDrive" no topo do app.', 'err');
+    toast('Conecte o OneDrive clicando no botão azul no topo.', 'error');
     report.odWebUrl = null;
     return;
   }
@@ -1666,8 +1829,8 @@ async function validateOdPath() {
     for (let i = segments.length - 1; i >= 0 && !found; i--) {
       const folderName = segments[i];
       if (!folderName || folderName.startsWith('http')) continue;
-      const token = currentUser?.graph_token;
-      if (!token) throw new Error('Token Microsoft não disponível. Configure o login Microsoft no perfil do gestor.');
+      const token = await getGraphToken();
+      if (!token) throw new Error('Token Microsoft não disponível. Clique em "Conectar OneDrive" no topo do app.');
       // Busca pela pasta via Graph API usando search
       const searchResp = await fetch(
         `https://graph.microsoft.com/v1.0/drives/${document.getElementById('proj-od-drive').value}/root/search(q='${encodeURIComponent(folderName)}')`,
