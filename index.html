@@ -369,7 +369,7 @@
                   <div><span style="font-size:11px;color:var(--text2)">Gestor</span><br><strong id="info-gestor">—</strong></div>
                 </div>
               </div>
-              <div id="nr-od-status" style="margin-top:10px"></div>
+              <div id="nr-od-status" style="margin-top:10px;display:none"></div>
             </div>
           </div>
           <div class="section-block">
@@ -422,9 +422,11 @@
           <div class="section-block">
             <h3>Registro Fotográfico</h3>
             <!-- Inputs ocultos -->
-            <input type="file" id="photo-input"  accept="image/*" multiple onchange="handlePhotoInput(this)" style="display:none">
+            <!-- Galeria: sem capture para permitir múltiplas fotos em iOS e Android -->
+            <input type="file" id="photo-input" accept="image/*" multiple onchange="handlePhotoInput(this)" style="display:none">
+            <!-- Câmera: capture=environment abre câmera traseira no Android -->
             <input type="file" id="photo-camera" accept="image/*" capture="environment" onchange="handlePhotoInput(this)" style="display:none">
-            <!-- Botões explícitos — visíveis em qualquer dispositivo -->
+            <!-- Botões explícitos -->
             <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
               <button class="btn btn-secondary" style="flex:1;min-width:130px" onclick="document.getElementById('photo-camera').click()">
                 <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" style="width:15px;height:15px;margin-right:5px;vertical-align:-2px"><rect x="1" y="4" width="18" height="13" rx="2"/><circle cx="10" cy="11" r="3"/><path d="M7 4l1-2h4l1 2"/></svg>
@@ -988,43 +990,96 @@ function setUpBar(pct) {
 }
 
 // ── RENDER REPORTS ────────────────────────────────────
-function renderReports() {
+function populateFilters() {
+  const sel = document.getElementById('filter-proj');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Todos os projetos</option>';
+  const seen = new Set();
+  reports.forEach(r => {
+    const pid  = r.projetoId || r.projeto_id || '';
+    const pnome = r.projetoNome || r.projeto_nome || pid;
+    if (pid && !seen.has(pid)) {
+      seen.add(pid);
+      const opt = document.createElement('option');
+      opt.value = pid;
+      opt.textContent = pnome;
+      if (pid === cur) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  });
+}
+
+function filterReports() {
+  const fp = document.getElementById('filter-proj')?.value  || '';
+  const fd = document.getElementById('filter-disc')?.value  || '';
+  const fs = document.getElementById('filter-status')?.value|| '';
   const tbody = document.getElementById('reports-tbody');
   if (!tbody) return;
-  if (!reports.length) {
-    tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;color:var(--text2);padding:32px">Nenhum relatório encontrado.</td></tr>`;
+  const filtered = reports.filter(r => {
+    const pid = r.projetoId || r.projeto_id || '';
+    if (fp && pid !== fp) return false;
+    if (fd && r.disciplina !== fd) return false;
+    if (fs && r.status !== fs) return false;
+    return true;
+  });
+  renderFilteredReports(filtered);
+}
+
+function renderReports() {
+  populateFilters();
+  filterReports();
+}
+
+function renderFilteredReports(list) {
+  const tbody = document.getElementById('reports-tbody');
+  if (!tbody) return;
+  const isGestor = currentUser.role === 'gestor';
+  // Atualizar thead por perfil
+  const thead = tbody.closest('table')?.querySelector('thead tr');
+  if (thead) {
+    if (isGestor) {
+      thead.innerHTML = '<th>#</th><th>Projeto / CC</th><th>Disciplina</th><th>Atividade</th><th>Técnico</th><th>Data/Hora</th><th>Status</th><th>Fotos</th><th>OneDrive</th><th>Ações</th>';
+    } else {
+      thead.innerHTML = '<th>#</th><th>Projeto / CC</th><th>Disciplina</th><th>Atividade</th><th>Técnico</th><th>Data/Hora</th><th>OneDrive</th><th>Ações</th>';
+    }
+  }
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;color:var(--text2);padding:32px">Nenhum relatório encontrado.</td></tr>`;
     return;
   }
-  tbody.innerHTML = reports.map((r,i) => {
-    const nome    = r.projetoNome || r.projeto_nome || '—';
-    const cc      = r.cc || '';
-    const disc    = r.disciplina || '—';
-    const atv     = r.atividade || '—';
-    const tec     = r.tecnico || '—';
-    const data    = fmtDate(r.createdAt || r.created_at);
-    const odUrl   = r.odWebUrl || r.od_web_url;
-    return `<tr>
-      <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)">${String(i+1).padStart(3,'0')}</td>
+  tbody.innerHTML = list.map((r,i) => {
+    const nome  = r.projetoNome || r.projeto_nome || '—';
+    const cc    = r.cc || '';
+    const disc  = r.disciplina || '—';
+    const atv   = r.atividade || '—';
+    const tec   = r.tecnico || '—';
+    const data  = fmtDate(r.createdAt || r.created_at);
+    const odUrl = r.odWebUrl || r.od_web_url;
+    const num   = String(i+1).padStart(3,'0');
+    const base  = `
+      <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)">${num}</td>
       <td><strong>${nome}</strong><br><span style="font-size:11px;color:var(--text2)">${cc}</span></td>
-      <td>${disc}</td>
-      <td>${atv}</td>
-      <td>${tec}</td>
-      <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${data}</td>
+      <td>${disc}</td><td>${atv}</td><td>${tec}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${data}</td>`;
+    if (!isGestor) return `<tr>${base}
+      <td><button class="btn btn-od btn-sm" onclick="sincronizarEAbrirRelatorio('${r.id}',this)">🔗 ${odUrl?'OneDrive':'Sincronizar'}</button></td>
+      <td><button class="btn btn-secondary btn-sm" onclick="openReport('${r.id}')">Ver</button></td>
+    </tr>`;
+    return `<tr>${base}
       <td>${statusChip(r.status)}</td>
-      <td><button class="btn btn-od btn-sm" style="padding:2px 8px;font-size:11px" onclick="event.stopPropagation();sincronizarEAbrirRelatorio('${r.id}',this)">🔗 Ver</button></td>
+      <td style="text-align:center"><span class="chip chip-blue">${r.fotoCount||r.foto_count||0}</span></td>
       <td>
-        <button class="btn btn-od btn-sm" onclick="sincronizarEAbrirRelatorio('${r.id}',this)">
-          🔗 ${odUrl ? 'OneDrive' : 'Sincronizar'}
-        </button>
-        ${r.odDayFolder||r.od_day_folder ? `<br><span style="font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace">${r.odDayFolder||r.od_day_folder}</span>` : ''}
+        <button class="btn btn-od btn-sm" onclick="sincronizarEAbrirRelatorio('${r.id}',this)">🔗 ${odUrl?'OneDrive':'Sincronizar'}</button>
+        ${r.odDayFolder||r.od_day_folder?`<br><span style="font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace">${r.odDayFolder||r.od_day_folder}</span>`:''}
       </td>
       <td>
         <button class="btn btn-secondary btn-sm" onclick="openReport('${r.id}')">Ver</button>
-        ${currentUser.role==='gestor' ? `<button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="deleteReport('${r.id}')">✕</button>` : ''}
+        <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="deleteReport('${r.id}')">✕</button>
       </td>
     </tr>`;
   }).join('');
-}
+} // fim renderFilteredReports
 
 function confirmarResp(ok) {
   document.getElementById('modal-confirm').style.display = 'none';
@@ -1116,12 +1171,10 @@ async function loadProjects() {
 
 async function loadReports() {
   const q = window._sb.from('reports').select('*').order('created_at', { ascending: false });
-  // Técnico vê próprios relatórios; gestor vê todos
   const { data, error } = currentUser.role === 'gestor'
     ? await q
     : await q.eq('tecnico_email', currentUser.email);
   if (error) { console.error('loadReports:', error); }
-  // Normalizar campos snake_case → camelCase para compatibilidade com o app
   reports = (data || []).map(r => ({
     ...r,
     id:              r.id,
@@ -1134,6 +1187,7 @@ async function loadReports() {
     odWebUrl:        r.od_web_url       || r.odWebUrl,
     odDayFolder:     r.od_day_folder    || r.odDayFolder,
   }));
+  renderReports();
 }
 
 async function loadUsers() {
@@ -1158,13 +1212,12 @@ function renderDashboard() {
   if (!recent.length) { document.getElementById('dash-recent-list').innerHTML = '<div class="empty"><p>Nenhum relatório ainda.</p></div>'; return; }
   document.getElementById('dash-recent-list').innerHTML = `
     <div class="table-wrap"><table>
-      <thead><tr><th>Projeto</th><th>Disciplina</th><th>Atividade</th><th>Técnico</th><th>Data</th><th>Status</th><th>OneDrive</th></tr></thead>
+      <thead><tr><th>Projeto</th><th>Disciplina</th><th>Atividade</th><th>Técnico</th><th>Data</th><th>Ações</th></tr></thead>
       <tbody>${recent.map(r=>`<tr style="cursor:pointer" onclick="openReport('${r.id}')">
-        <td><strong>${r.projetoNome||'—'}</strong><br><span style="color:var(--text2);font-size:11px">${r.cc||''}</span></td>
+        <td><strong>${r.projetoNome||r.projeto_nome||'—'}</strong><br><span style="color:var(--text2);font-size:11px">${r.cc||''}</span></td>
         <td>${r.disciplina||'—'}</td><td>${r.atividade||'—'}</td><td>${r.tecnico||'—'}</td>
-        <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${fmtDate(r.createdAt)}</td>
-        <td>${statusChip(r.status)}</td>
-        <td><button class="btn btn-od btn-sm" style="padding:2px 8px;font-size:11px" onclick="event.stopPropagation();sincronizarEAbrirRelatorio('${r.id}',this)">🔗 Ver</button></td>
+        <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${fmtDate(r.createdAt||r.created_at)}</td>
+        <td><button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();openReport('${r.id}')">Ver</button></td>
       </tr>`).join('')}</tbody>
     </table></div>`;
 }
@@ -1661,7 +1714,7 @@ async function openReport(id) {
       <div><span style="font-size:11px;color:var(--text2)">Técnico</span><br><strong>${r.tecnico||'—'}</strong></div>
     </div>
     ${r.obs ? `<div style="background:var(--bg);border-radius:var(--radius);padding:12px;margin-bottom:12px;font-size:13px">${r.obs}</div>` : ''}
-    ${r.odWebUrl ? `<div style="margin-bottom:12px"><button class="btn btn-od btn-sm" onclick="abrirLink('${r.odWebUrl}')">Abrir arquivo no OneDrive</button></div>` : ''}
+
     <div class="actions-row" style="margin-top:20px">
       <button class="btn btn-secondary" onclick="closeModal('modal-report')">Fechar</button>
       <button class="btn btn-od btn-sm" onclick="exportRelatorioPDF('${r.id}')" style="margin-left:8px">📄 Ver Relatório</button>
@@ -1679,28 +1732,31 @@ async function openReport(id) {
 async function sincronizarEAbrirRelatorio(id, btnEl) {
   const r = reports.find(x=>x.id===id);
   if (!r) return;
-  const proj = projects.find(p=>p.id===(r.projetoId||r.projeto_id));
-  const temOD = proj?.odDriveId && proj?.odItemId;
   if (btnEl) { btnEl.disabled = true; btnEl.textContent = '⏳ …'; }
   try {
-    if (temOD) {
-      await uploadToOneDrive(r, proj);
-      if (window._sb && r.odWebUrl) {
-        try {
-          await window._sb.from('reports').update({
-            od_web_url: r.odWebUrl, od_day_folder: r.odDayFolder
-          }).eq('id', id);
-        } catch(_) {}
-        const idx = reports.findIndex(x=>x.id===id);
-        if (idx>=0) { reports[idx].odWebUrl = r.odWebUrl; reports[idx].odDayFolder = r.odDayFolder; }
+    // Só sincronizar se ainda não foi enviado ao OneDrive
+    const jaSync = r.odWebUrl || r.od_web_url;
+    if (!jaSync) {
+      const proj = projects.find(p=>p.id===(r.projetoId||r.projeto_id));
+      if (proj?.odDriveId && proj?.odItemId) {
+        await uploadToOneDrive(r, proj);
+        if (r.odWebUrl) {
+          try {
+            await window._sb.from('reports').update({
+              od_web_url: r.odWebUrl, od_day_folder: r.odDayFolder
+            }).eq('id', id);
+          } catch(_) {}
+          const idx = reports.findIndex(x=>x.id===id);
+          if (idx>=0) { reports[idx].odWebUrl = r.odWebUrl; reports[idx].odDayFolder = r.odDayFolder; }
+          renderReports();
+        }
       }
-      renderReports();
     }
     await exportRelatorioPDF(id);
   } catch(e) {
     toast('Erro: ' + (e?.message||e), 'error');
   } finally {
-    if (btnEl) { btnEl.disabled = false; btnEl.textContent = '🔗 ' + (r.odWebUrl ? 'OneDrive' : 'Sincronizar'); }
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = '🔗 ' + ((r.odWebUrl||r.od_web_url) ? 'OneDrive' : 'Sincronizar'); }
   }
 }
 
