@@ -1591,6 +1591,96 @@ async function uploadToOneDrive(report, proj) {
 }
 
 // ── GERAR HTML DO RELATÓRIO (reutilizado pelo export e pelo upload OneDrive) ──
+// ── ABRIR MODAL DO RELATÓRIO ──────────────────────────
+async function openReport(id) {
+  const r = reports.find(x=>x.id===id);
+  if (!r) return;
+  // Normalizar campos
+  r.projetoNome     = r.projetoNome     || r.projeto_nome;
+  r.tipoAtendimento = r.tipoAtendimento || r.tipo_atendimento;
+  r.odWebUrl        = r.odWebUrl        || r.od_web_url;
+  r.odDayFolder     = r.odDayFolder     || r.od_day_folder;
+  r.fotoCount       = r.fotoCount       || r.foto_count || 0;
+  r.createdAt       = r.createdAt       || r.created_at;
+
+  const dtBR   = new Date(r.createdAt).toLocaleDateString('pt-BR');
+  const canEdit = currentUser.role === 'gestor';
+  const proj   = projects.find(p=>p.id===(r.projetoId||r.projeto_id));
+
+  document.getElementById('modal-report-body').innerHTML = `
+    <div class="rh-info grid-2" style="gap:10px;margin-bottom:16px">
+      <div><span style="font-size:11px;color:var(--text2)">Projeto</span><br><strong>${r.projetoNome||'—'}</strong></div>
+      <div><span style="font-size:11px;color:var(--text2)">Data</span><br><strong>${dtBR}</strong></div>
+      <div><span style="font-size:11px;color:var(--text2)">Disciplina</span><br><strong>${r.disciplina||'—'}</strong></div>
+      <div><span style="font-size:11px;color:var(--text2)">Tipo</span><br><strong>${r.tipoAtendimento||'—'}</strong></div>
+      <div><span style="font-size:11px;color:var(--text2)">Atividade</span><br><strong>${r.atividade||'—'}</strong></div>
+      <div><span style="font-size:11px;color:var(--text2)">Status</span><br>${statusChip(r.status)}</div>
+      <div><span style="font-size:11px;color:var(--text2)">Andar</span><br><strong>${r.andar||'—'}</strong></div>
+      <div><span style="font-size:11px;color:var(--text2)">Técnico</span><br><strong>${r.tecnico||'—'}</strong></div>
+    </div>
+    ${r.obs ? `<div style="background:var(--bg);border-radius:var(--radius);padding:12px;margin-bottom:12px;font-size:13px">${r.obs}</div>` : ''}
+    ${r.odWebUrl ? `<div style="margin-bottom:12px"><button class="btn btn-od btn-sm" onclick="abrirLink('${r.odWebUrl}')">Abrir arquivo no OneDrive</button></div>` : ''}
+    <div class="actions-row" style="margin-top:20px">
+      <button class="btn btn-secondary" onclick="closeModal('modal-report')">Fechar</button>
+      <button class="btn btn-od btn-sm" onclick="exportRelatorioPDF('${r.id}')" style="margin-left:8px">📄 Ver Relatório</button>
+      ${currentUser.role==='gestor' ? `
+      <button class="btn btn-od btn-sm" id="btn-sync-od-${r.id}" onclick="syncOdManual('${r.id}')" style="margin-left:8px">
+        🔄 ${r.odWebUrl ? 'Re-sincronizar OneDrive' : 'Sincronizar OneDrive'}
+      </button>` : ''}
+      <span class="ml-auto"></span>
+      ${canEdit ? `<button class="btn btn-primary" onclick="saveEditReport('${r.id}')">Salvar alterações</button>` : ''}
+    </div>`;
+  document.getElementById('modal-report').style.display = 'flex';
+}
+
+// ── SINCRONIZAR E ABRIR RELATÓRIO ─────────────────────
+async function sincronizarEAbrirRelatorio(id, btnEl) {
+  const r = reports.find(x=>x.id===id);
+  if (!r) return;
+  const proj = projects.find(p=>p.id===(r.projetoId||r.projeto_id));
+  const temOD = proj?.odDriveId && proj?.odItemId;
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = '⏳ …'; }
+  try {
+    if (temOD) {
+      await uploadToOneDrive(r, proj);
+      if (window._sb && r.odWebUrl) {
+        try {
+          await window._sb.from('reports').update({
+            od_web_url: r.odWebUrl, od_day_folder: r.odDayFolder
+          }).eq('id', id);
+        } catch(_) {}
+        const idx = reports.findIndex(x=>x.id===id);
+        if (idx>=0) { reports[idx].odWebUrl = r.odWebUrl; reports[idx].odDayFolder = r.odDayFolder; }
+      }
+      renderReports();
+    }
+    await exportRelatorioPDF(id);
+  } catch(e) {
+    toast('Erro: ' + (e?.message||e), 'error');
+  } finally {
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = '🔗 ' + (r.odWebUrl ? 'OneDrive' : 'Sincronizar'); }
+  }
+}
+
+// ── SINCRONIZAR MANUAL (botão no modal) ───────────────
+async function syncOdManual(id) {
+  const r    = reports.find(x=>x.id===id);
+  const proj = projects.find(p=>p.id===(r?.projetoId||r?.projeto_id));
+  if (!r || !proj?.odDriveId) { toast('Projeto sem OneDrive configurado.','error'); return; }
+  const btn = document.getElementById(`btn-sync-od-${id}`);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Sincronizando…'; }
+  try {
+    await uploadToOneDrive(r, proj);
+    if (r.odWebUrl) {
+      await window._sb.from('reports').update({ od_web_url: r.odWebUrl, od_day_folder: r.odDayFolder }).eq('id', id);
+      const idx = reports.findIndex(x=>x.id===id);
+      if (idx>=0) { reports[idx].odWebUrl = r.odWebUrl; reports[idx].odDayFolder = r.odDayFolder; }
+    }
+    closeModal('modal-report'); renderReports();
+  } catch(e) { toast('Erro: '+(e?.message||e),'error'); }
+  finally { if (btn) { btn.disabled=false; btn.textContent='🔄 Re-sincronizar OneDrive'; } }
+}
+
 async function gerarHTMLRelatorio(r) {
 
   const dt     = new Date(r.createdAt);
