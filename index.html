@@ -673,7 +673,6 @@
 <div id="toast"></div>
 
 <script>
-// ── SUPABASE ─────────────────────────────────────────
 // !! SUBSTITUA PELAS SUAS CREDENCIAIS !!
 const SUPABASE_URL = 'https://ojdhovliloxdqbaannrm.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZGhvdmxpbG94ZHFiYWFubnJtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI5OTM0MDEsImV4cCI6MjEwODU2OTQwMX0.LMH4Myvb1E0eqzHozGsaVmtLOt2Kn8ZR1bARTL7ptM0';
@@ -682,6 +681,7 @@ window._sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 // ── AZURE / MICROSOFT GRAPH ───────────────────────────
 // !! SUBSTITUA PELO SEU CLIENT ID DO AZURE !!
 const AZURE_CLIENT_ID  = '60e70a7d-a045-43cb-804a-54d8fc409429';
+const AZURE_CLIENT_ID  = 'SEU_CLIENT_ID_AZURE';
 const AZURE_REDIRECT   = window.location.origin + '/';  // URL do app no Vercel
 const AZURE_SCOPES     = 'Files.ReadWrite Sites.ReadWrite.All User.Read offline_access';
 
@@ -1516,9 +1516,9 @@ async function submitReport() {
 async function uploadToOneDrive(report, proj) {
   const todayStr = todayFolder();
   const dtObj    = new Date(report.createdAt);
-  const ddmmaa   = `${String(dtObj.getDate()).padStart(2,'0')}-${String(dtObj.getMonth()+1).padStart(2,'0')}-${String(dtObj.getFullYear()).slice(2)}`;
-  const safeDisc = (report.disciplina||'relatorio').replace(/[^a-zA-Z0-9]/g,'_');
-  const filename = `${ddmmaa}_${safeDisc}_${report.id}`;
+  // Nome do arquivo = número do documento (últimos 6 dígitos do ID)
+  const docNum   = report.id.replace('R','').slice(-6);
+  const filename = docNum;
 
   addUpStep('Conectando ao OneDrive…', 'active');
   setUpBar(20);
@@ -1542,36 +1542,29 @@ async function uploadToOneDrive(report, proj) {
     setUpBar(35);
     let dayFolderId = proj.odItemId;
 
-    // Tentar criar pasta — se já existir (409) buscar pelo path direto
-    const mkdirResp = await fetch(
-      `https://graph.microsoft.com/v1.0/drives/${proj.odDriveId}/items/${proj.odItemId}/children`,
-      { method:'POST', headers, body: JSON.stringify({ name: todayStr, folder: {}, '@microsoft.graph.conflictBehavior': 'rename' }) }
+    // 1. Verificar se pasta do dia já existe (evita duplicata)
+    const checkResp = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${proj.odDriveId}/items/${proj.odItemId}:/${todayStr}`,
+      { headers: { 'Authorization': `Bearer ${token}` } }
     );
-    if (mkdirResp.ok) {
-      const folder = await mkdirResp.json();
-      // Se conflictBehavior=rename criou "2026-10-28 1", ainda assim usamos esse ID
-      // Preferir buscar pelo nome exato para garantir consistência
-      dayFolderId = folder.name === todayStr ? folder.id : null;
-      if (dayFolderId) { addUpStep(`Pasta ${todayStr} criada ✓`, 'done'); }
-    }
-
-    // Se não criou ou nome diferiu, buscar pelo path direto
-    if (!dayFolderId) {
-      addUpStep(`Localizando pasta ${todayStr}…`, 'active');
-      const pathResp = await fetch(
-        `https://graph.microsoft.com/v1.0/drives/${proj.odDriveId}/items/${proj.odItemId}:/${todayStr}`,
-        { headers: { 'Authorization': `Bearer ${token}` } }
+    if (checkResp.ok) {
+      const existing = await checkResp.json();
+      dayFolderId = existing.id;
+      addUpStep(`Pasta ${todayStr} localizada ✓`, 'done');
+    } else {
+      // Pasta não existe — criar com conflictBehavior fail (não duplicar)
+      const mkdirResp = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${proj.odDriveId}/items/${proj.odItemId}/children`,
+        { method:'POST', headers, body: JSON.stringify({ name: todayStr, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }) }
       );
-      if (pathResp.ok) {
-        const pathData = await pathResp.json();
-        dayFolderId = pathData.id || null;
-        if (dayFolderId) addUpStep(`Pasta ${todayStr} localizada ✓`, 'done');
+      if (mkdirResp.ok) {
+        const folder = await mkdirResp.json();
+        dayFolderId = folder.id;
+        addUpStep(`Pasta ${todayStr} criada ✓`, 'done');
+      } else {
+        addUpStep(`Usando pasta raiz (fallback)`, 'active');
+        dayFolderId = proj.odItemId;
       }
-    }
-
-    if (!dayFolderId) {
-      addUpStep(`Usando pasta raiz do projeto (fallback)`, 'active');
-      dayFolderId = proj.odItemId;
     }
 
     setUpBar(55);
