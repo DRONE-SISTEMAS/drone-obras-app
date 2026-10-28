@@ -1523,68 +1523,16 @@ async function uploadToOneDrive(report, proj) {
   addUpStep('Conectando ao OneDrive…', 'active');
   setUpBar(20);
 
-  // Buscar token do gestor — renovar automaticamente se expirado
-  let token = null;
-  try {
-    const { data: gestores } = await window._sb
-      .from('users').select('id, graph_token, graph_refresh_token, graph_expires_at')
-      .eq('role','gestor').not('graph_token','is',null).limit(1);
-
-    if (gestores?.length) {
-      const g = gestores[0];
-      const expires = g.graph_expires_at ? new Date(g.graph_expires_at) : null;
-      const expirado = !expires || expires < new Date(Date.now() + 5 * 60 * 1000);
-
-      if (!expirado) {
-        // Token ainda válido
-        token = g.graph_token;
-      } else if (g.graph_refresh_token) {
-        // Token expirado — renovar via refresh_token
-        addUpStep('Renovando token Microsoft…', 'active');
-        const resp = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            client_id:     AZURE_CLIENT_ID,
-            grant_type:    'refresh_token',
-            refresh_token: g.graph_refresh_token,
-            scope:         AZURE_SCOPES,
-          }),
-        });
-        const data = await resp.json();
-        if (data.access_token) {
-          token = data.access_token;
-          const newExpires = new Date(Date.now() + data.expires_in * 1000).toISOString();
-          await window._sb.from('users').update({
-            graph_token:         data.access_token,
-            graph_refresh_token: data.refresh_token || g.graph_refresh_token,
-            graph_expires_at:    newExpires,
-          }).eq('id', g.id);
-          if (currentUser?.id === g.id) {
-            currentUser.graph_token = data.access_token;
-            currentUser.graph_expires_at = newExpires;
-            localStorage.setItem('drone_user', JSON.stringify(currentUser));
-            atualizarBotaoMicrosoft();
-          }
-          addUpStep('Token renovado ✓', 'done');
-        } else {
-          addUpStep(`Erro ao renovar: ${data.error_description||data.error}`, 'err');
-        }
-      }
-    }
-  } catch(e) {
-    addUpStep(`Erro ao buscar token: ${e.message||e}`, 'err');
-  }
-
-  // Fallback: token do usuário logado
-  if (!token) token = currentUser?.graph_token || null;
-
+  // Obter token do gestor (renova automaticamente via refresh_token se expirado)
+  addUpStep('Verificando token Microsoft…', 'active');
+  const token = await obterTokenGestor();
   if (!token) {
     addUpStep('Token Microsoft não disponível. Clique em "Conectar OneDrive" no topo.', 'err');
     toast('Clique em "Conectar OneDrive" no topo do app.', 'error');
     report.odWebUrl = null;
     return;
   }
+  addUpStep('Token OK ✓', 'done');
 
   const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
 
@@ -1594,25 +1542,36 @@ async function uploadToOneDrive(report, proj) {
     setUpBar(35);
     let dayFolderId = proj.odItemId;
 
+    // Tentar criar pasta — se já existir (409) buscar pelo path direto
     const mkdirResp = await fetch(
       `https://graph.microsoft.com/v1.0/drives/${proj.odDriveId}/items/${proj.odItemId}/children`,
-      { method:'POST', headers, body: JSON.stringify({ name: todayStr, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }) }
+      { method:'POST', headers, body: JSON.stringify({ name: todayStr, folder: {}, '@microsoft.graph.conflictBehavior': 'rename' }) }
     );
     if (mkdirResp.ok) {
       const folder = await mkdirResp.json();
-      dayFolderId = folder.id;
-      addUpStep(`Pasta ${todayStr} criada ✓`, 'done');
-    } else {
-      // Pasta já existe — buscar pelo nome
-      addUpStep(`Pasta ${todayStr} já existe, localizando…`, 'active');
-      const searchResp = await fetch(
-        `https://graph.microsoft.com/v1.0/drives/${proj.odDriveId}/items/${proj.odItemId}/children?$filter=name eq '${todayStr}'`,
+      // Se conflictBehavior=rename criou "2026-10-28 1", ainda assim usamos esse ID
+      // Preferir buscar pelo nome exato para garantir consistência
+      dayFolderId = folder.name === todayStr ? folder.id : null;
+      if (dayFolderId) { addUpStep(`Pasta ${todayStr} criada ✓`, 'done'); }
+    }
+
+    // Se não criou ou nome diferiu, buscar pelo path direto
+    if (!dayFolderId) {
+      addUpStep(`Localizando pasta ${todayStr}…`, 'active');
+      const pathResp = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${proj.odDriveId}/items/${proj.odItemId}:/${todayStr}`,
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
-      const searchData = await searchResp.json();
-      dayFolderId = searchData.value?.[0]?.id || proj.odItemId;
-      if (dayFolderId !== proj.odItemId) addUpStep(`Pasta ${todayStr} localizada ✓`, 'done');
-      else addUpStep(`Usando pasta raiz do projeto (fallback)`, 'active');
+      if (pathResp.ok) {
+        const pathData = await pathResp.json();
+        dayFolderId = pathData.id || null;
+        if (dayFolderId) addUpStep(`Pasta ${todayStr} localizada ✓`, 'done');
+      }
+    }
+
+    if (!dayFolderId) {
+      addUpStep(`Usando pasta raiz do projeto (fallback)`, 'active');
+      dayFolderId = proj.odItemId;
     }
 
     setUpBar(55);
@@ -2128,7 +2087,7 @@ async function validateOdPath() {
     for (let i = segments.length - 1; i >= 0 && !found; i--) {
       const folderName = segments[i];
       if (!folderName || folderName.startsWith('http')) continue;
-      const token = await getGraphToken();
+      const token = await obterTokenGestor();
       if (!token) throw new Error('Token Microsoft não disponível. Clique em "Conectar OneDrive" no topo do app.');
       // Busca pela pasta via Graph API usando search
       const searchResp = await fetch(
@@ -2204,6 +2163,74 @@ function unlockOdFields() {
   document.getElementById('proj-od-item-id').removeAttribute('readonly');
   document.getElementById('proj-od-item-id').style.color = '';
   document.getElementById('proj-od-item-id').placeholder = 'Cole o Item ID da pasta aqui';
+}
+
+// ── TOKEN GESTOR CENTRALIZADO (com renovação automática) ─────────────────
+async function obterTokenGestor() {
+  // 1. Token do usuário atual ainda válido
+  const expires = currentUser?.graph_expires_at ? new Date(currentUser.graph_expires_at) : null;
+  if (currentUser?.graph_token && expires && expires > new Date(Date.now() + 60000)) {
+    return currentUser.graph_token;
+  }
+
+  // 2. Buscar gestor no Supabase e renovar se necessário
+  try {
+    const { data: gestores } = await window._sb
+      .from('users').select('id, graph_token, graph_refresh_token, graph_expires_at')
+      .eq('role','gestor').not('graph_token','is',null).limit(1);
+
+    if (!gestores?.length) return null;
+    const g = gestores[0];
+    const gExpires = g.graph_expires_at ? new Date(g.graph_expires_at) : null;
+    const valido   = gExpires && gExpires > new Date(Date.now() + 60000);
+
+    if (valido) return g.graph_token;
+
+    // Token expirado — renovar via refresh_token
+    if (!g.graph_refresh_token) return null;
+
+    const resp = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id:     AZURE_CLIENT_ID,
+        grant_type:    'refresh_token',
+        refresh_token: g.graph_refresh_token,
+        scope:         AZURE_SCOPES,
+      }),
+    });
+    const data = await resp.json();
+    if (!data.access_token) return null;
+
+    const newExpires = new Date(Date.now() + data.expires_in * 1000).toISOString();
+    await window._sb.from('users').update({
+      graph_token:         data.access_token,
+      graph_refresh_token: data.refresh_token || g.graph_refresh_token,
+      graph_expires_at:    newExpires,
+    }).eq('id', g.id);
+
+    if (currentUser?.id === g.id) {
+      currentUser.graph_token      = data.access_token;
+      currentUser.graph_expires_at = newExpires;
+      localStorage.setItem('drone_user', JSON.stringify(currentUser));
+      atualizarBotaoMicrosoft();
+    }
+    return data.access_token;
+  } catch(e) {
+    return null;
+  }
+}
+
+function abrirLink(url) {
+  if (!url) return;
+  const w = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!w) {
+    const msg = document.createElement('div');
+    msg.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1a7ef7;color:#fff;padding:12px 20px;border-radius:8px;z-index:99999;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.3)';
+    msg.innerHTML = `Popup bloqueado. <a href="${url}" target="_blank" style="color:#fff;font-weight:700;text-decoration:underline">Clique aqui para abrir →</a>`;
+    document.body.appendChild(msg);
+    setTimeout(() => msg.remove(), 8000);
+  }
 }
 
 function showOdValidated(webUrl, alreadySaved) {
