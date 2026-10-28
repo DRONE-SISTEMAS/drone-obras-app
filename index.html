@@ -804,16 +804,20 @@ function atualizarBotaoMicrosoft() {
   const btn = document.getElementById('btn-ms-connect');
   if (!btn) return;
   if (currentUser?.role !== 'gestor') { btn.style.display = 'none'; return; }
-  if (currentUser?.graph_token) {
-    btn.style.display = 'inline-flex';
+  const msIcon = `<svg viewBox="0 0 21 21" style="width:13px;height:13px;vertical-align:-2px;margin-right:3px"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>`;
+  const expires  = currentUser?.graph_expires_at ? new Date(currentUser.graph_expires_at) : null;
+  const valido   = currentUser?.graph_token && expires && expires > new Date();
+  btn.style.display = 'inline-flex';
+  if (valido) {
     btn.style.background = '#107c41';
-    btn.innerHTML = `<svg viewBox="0 0 21 21" style="width:13px;height:13px;vertical-align:-2px;margin-right:3px"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg> OneDrive ✓`;
+    btn.innerHTML = `${msIcon} OneDrive ✓`;
     btn.onclick = null;
+    btn.title = `Token válido até ${expires.toLocaleTimeString('pt-BR')}`;
   } else {
-    btn.style.display = 'inline-flex';
     btn.style.background = '#0078d4';
-    btn.innerHTML = `<svg viewBox="0 0 21 21" style="width:13px;height:13px;vertical-align:-2px;margin-right:3px"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg> Conectar OneDrive`;
+    btn.innerHTML = `${msIcon} Conectar OneDrive`;
     btn.onclick = iniciarLoginMicrosoft;
+    btn.title = currentUser?.graph_token ? 'Token expirado — clique para reconectar' : 'Clique para conectar o OneDrive';
   }
 }
 
@@ -1012,6 +1016,38 @@ function renderReports() {
 function confirmarResp(ok) {
   document.getElementById('modal-confirm').style.display = 'none';
   if (_confirmResolve) { _confirmResolve(ok); _confirmResolve = null; }
+}
+
+async function deleteReport(id) {
+  const r    = reports.find(x=>x.id===id);
+  const desc = r ? `${r.disciplina||''} — ${r.projetoNome||r.projeto_nome||''} (${fmtDate(r.createdAt||r.created_at)})` : id;
+  const ok   = await confirmar(`Excluir este relatório?\n\n${desc}`, 'Excluir relatório');
+  if (!ok) return;
+  reports = reports.filter(r=>r.id!==id);
+  try { await window._sb.from('reports').delete().eq('id', id); } catch(e) {}
+  toast('Relatório removido.', 'info');
+  renderReports();
+}
+
+async function deleteProject(id) {
+  const proj = projects.find(x=>x.id===id);
+  const ok   = await confirmar(`Excluir o projeto "${proj?.nome||id}"?`, 'Excluir projeto');
+  if (!ok) return;
+  projects = projects.filter(p=>p.id!==id);
+  try { await window._sb.from('projects').delete().eq('id', id); } catch(e) {}
+  toast('Projeto removido.', 'info');
+  renderProjects();
+}
+
+async function deleteUser(id) {
+  const u  = users.find(x=>x.id===id);
+  if (u?.id === currentUser.id) { toast('Não é possível excluir o próprio usuário.', 'error'); return; }
+  const ok = await confirmar(`Excluir o usuário "${u?.name||id}"?`, 'Excluir usuário');
+  if (!ok) return;
+  users = users.filter(x=>x.id!==id);
+  try { await window._sb.from('users').delete().eq('id', id); } catch(e) {}
+  toast('Usuário removido.', 'info');
+  renderUsers();
 }
 
 function toggleSidebar(force) {
@@ -1487,26 +1523,65 @@ async function uploadToOneDrive(report, proj) {
   addUpStep('Conectando ao OneDrive…', 'active');
   setUpBar(20);
 
-  // Token Microsoft Graph — usa o token do gestor (salvo no Supabase)
-  // O técnico não precisa conectar o OneDrive — usa o token do gestor do projeto
-  let token = await getGraphToken(); // tenta token do usuário atual primeiro
-  if (!token) {
-    // Buscar token de qualquer gestor disponível no Supabase
-    try {
-      const { data: gestores } = await window._sb
-        .from('users')
-        .select('graph_token, graph_expires_at')
-        .eq('role', 'gestor')
-        .not('graph_token', 'is', null)
-        .limit(1);
-      if (gestores?.length) {
-        token = gestores[0].graph_token;
+  // Buscar token do gestor — renovar automaticamente se expirado
+  let token = null;
+  try {
+    const { data: gestores } = await window._sb
+      .from('users').select('id, graph_token, graph_refresh_token, graph_expires_at')
+      .eq('role','gestor').not('graph_token','is',null).limit(1);
+
+    if (gestores?.length) {
+      const g = gestores[0];
+      const expires = g.graph_expires_at ? new Date(g.graph_expires_at) : null;
+      const expirado = !expires || expires < new Date(Date.now() + 5 * 60 * 1000);
+
+      if (!expirado) {
+        // Token ainda válido
+        token = g.graph_token;
+      } else if (g.graph_refresh_token) {
+        // Token expirado — renovar via refresh_token
+        addUpStep('Renovando token Microsoft…', 'active');
+        const resp = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id:     AZURE_CLIENT_ID,
+            grant_type:    'refresh_token',
+            refresh_token: g.graph_refresh_token,
+            scope:         AZURE_SCOPES,
+          }),
+        });
+        const data = await resp.json();
+        if (data.access_token) {
+          token = data.access_token;
+          const newExpires = new Date(Date.now() + data.expires_in * 1000).toISOString();
+          await window._sb.from('users').update({
+            graph_token:         data.access_token,
+            graph_refresh_token: data.refresh_token || g.graph_refresh_token,
+            graph_expires_at:    newExpires,
+          }).eq('id', g.id);
+          if (currentUser?.id === g.id) {
+            currentUser.graph_token = data.access_token;
+            currentUser.graph_expires_at = newExpires;
+            localStorage.setItem('drone_user', JSON.stringify(currentUser));
+            atualizarBotaoMicrosoft();
+          }
+          addUpStep('Token renovado ✓', 'done');
+        } else {
+          addUpStep(`Erro ao renovar: ${data.error_description||data.error}`, 'err');
+        }
       }
-    } catch(e) {}
+    }
+  } catch(e) {
+    addUpStep(`Erro ao buscar token: ${e.message||e}`, 'err');
   }
+
+  // Fallback: token do usuário logado
+  if (!token) token = currentUser?.graph_token || null;
+
   if (!token) {
-    addUpStep('Token Microsoft não disponível. O gestor precisa clicar em "Conectar OneDrive" no topo do app.', 'err');
-    toast('Peça ao gestor para conectar o OneDrive no app.', 'error');
+    addUpStep('Token Microsoft não disponível. Clique em "Conectar OneDrive" no topo.', 'err');
+    toast('Clique em "Conectar OneDrive" no topo do app.', 'error');
     report.odWebUrl = null;
     return;
   }
@@ -2181,15 +2256,7 @@ async function saveProject() {
   renderProjects();
 }
 
-async function deleteProject(id) {
-  const proj = projects.find(x=>x.id===id);
-  const ok = await confirmar(`Excluir o projeto "${proj?.nome||id}"?`, 'Excluir projeto');
-  if (!ok) return;
-  projects = projects.filter(p=>p.id!==id);
-  try { await window._sb.from('projects').delete().eq('id', id); } catch(e) {}
-  toast('Projeto removido.','info');
-  renderProjects();
-}
+
 
 // ═══════════════════════════════════════════════════════
 //  USUÁRIOS
@@ -2320,18 +2387,7 @@ async function saveUser() {
   renderUsers();
 }
 
-async function deleteUser(id) {
-  const u = users.find(x=>x.id===id);
-  if (!u) return;
-  // Impedir exclusão do próprio gestor logado
-  if (u.email === currentUser.email) { toast('Você não pode excluir seu próprio usuário.','error'); return; }
-  const ok = await confirmar(`Excluir o usuário "${u.name}"?`, 'Excluir usuário');
-  if (!ok) return;
-  users = users.filter(x=>x.id!==id);
-  try { await window._sb.from('users').delete().eq('id', id); } catch(e) {}
-  toast(`Usuário ${u.name} removido.`, 'info');
-  renderUsers();
-}
+
 
 // ── SETUP INICIAL (primeiro acesso — sem nenhum usuário cadastrado) ──
 function showSetupScreen() {
