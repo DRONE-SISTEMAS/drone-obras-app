@@ -1393,15 +1393,17 @@ async function submitReport() {
           addUpStep(`Foto ${i+1}/${photos.length}: enviando ${p.name}…`, 'active');
           const ext  = (p.name||'foto').split('.').pop().toLowerCase() || 'jpg';
           const path = `${reportId}/foto_${i}.${ext}`;
-          const { error: upErr } = await window._sb.storage.from('fotos-relatorios').upload(path, p.blob, { upsert: true });
+          const { data: upData, error: upErr } = await window._sb.storage.from('fotos-relatorios').upload(path, p.blob, { upsert: true });
           if (!upErr) {
-            const { data: { publicUrl } } = window._sb.storage.from('fotos-relatorios').getPublicUrl(path);
+            const { data: urlData } = window._sb.storage.from('fotos-relatorios').getPublicUrl(path);
+            const publicUrl = urlData?.publicUrl;
             fotasUpadas.push({ assetUrl: publicUrl, time:p.time, lat:p.lat, lng:p.lng, accuracy:p.accuracy, name:p.name, sizeMB:p.sizeMB });
             algumOk = true;
+            addUpStep(`Foto ${i+1}/${photos.length}: ${p.name} ✓`, 'done');
           } else {
+            addUpStep(`Foto ${i+1}: erro storage — ${upErr.message}`, 'err');
             fotasUpadas.push({ time:p.time, lat:p.lat, lng:p.lng, accuracy:p.accuracy, name:p.name, sizeMB:p.sizeMB });
           }
-          addUpStep(`Foto ${i+1}/${photos.length}: ${p.name} ✓`, 'done');
         } else {
           fotasUpadas.push({ time:p.time, lat:p.lat, lng:p.lng, accuracy:p.accuracy, name:p.name, sizeMB:p.sizeMB });
         }
