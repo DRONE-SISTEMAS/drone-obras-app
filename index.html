@@ -1737,7 +1737,11 @@ async function gerarHTMLRelatorio(r) {
 
   // ── Fotos → base64 ──
   async function fotoParaBase64(f) {
+    // 1. dataUrl em memória (sessão atual)
     if (f.dataUrl && f.dataUrl.startsWith('data:')) return f.dataUrl;
+    // 2. URL pública do Supabase Storage — usar diretamente (evita CORS do fetch)
+    if (f.assetUrl && f.assetUrl.startsWith('http')) return f.assetUrl;
+    // 3. URL legada /_blob/ do artifact — tentar fetch
     if (f.assetUrl) {
       try {
         const resp = await fetch(f.assetUrl);
