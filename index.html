@@ -1407,11 +1407,26 @@ async function uploadToOneDrive(report, proj) {
   addUpStep('Conectando ao OneDrive…', 'active');
   setUpBar(20);
 
-  // Token Microsoft Graph — obtido via OAuth (renova automaticamente se expirado)
-  const token = await getGraphToken();
+  // Token Microsoft Graph — usa o token do gestor (salvo no Supabase)
+  // O técnico não precisa conectar o OneDrive — usa o token do gestor do projeto
+  let token = await getGraphToken(); // tenta token do usuário atual primeiro
   if (!token) {
-    addUpStep('Token Microsoft não disponível. Clique em "Conectar OneDrive" no topo do app.', 'err');
-    toast('Conecte o OneDrive clicando no botão azul no topo.', 'error');
+    // Buscar token de qualquer gestor disponível no Supabase
+    try {
+      const { data: gestores } = await window._sb
+        .from('users')
+        .select('graph_token, graph_expires_at')
+        .eq('role', 'gestor')
+        .not('graph_token', 'is', null)
+        .limit(1);
+      if (gestores?.length) {
+        token = gestores[0].graph_token;
+      }
+    } catch(e) {}
+  }
+  if (!token) {
+    addUpStep('Token Microsoft não disponível. O gestor precisa clicar em "Conectar OneDrive" no topo do app.', 'err');
+    toast('Peça ao gestor para conectar o OneDrive no app.', 'error');
     report.odWebUrl = null;
     return;
   }
