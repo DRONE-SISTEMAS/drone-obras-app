@@ -1108,20 +1108,17 @@ function onProjetoChange() {
 
 function goStep(n) {
   if (n===2) {
-    if (!document.getElementById('nr-projeto').value) { toast('Selecione um projeto.','error'); return; }
-    if (!document.getElementById('nr-disciplina').value) { toast('Selecione uma disciplina.','error'); return; }
-    if (!document.getElementById('nr-andar').value) { toast('Informe o andar/pavimento.','error'); return; }
+    const projEl = document.getElementById('nr-projeto');
+    const discEl = document.getElementById('nr-disciplina');
+    const tipoEl = document.getElementById('nr-tipo-atendimento');
+    const andarEl = document.getElementById('nr-andar');
+    if (!projEl.value)  { projEl.style.border='2px solid var(--danger)';  toast('⚠ Selecione um projeto.','error');          setTimeout(()=>projEl.style.border='',3000);  return; }
+    if (!discEl.value)  { discEl.style.border='2px solid var(--danger)';  toast('⚠ Selecione a disciplina.','error');         setTimeout(()=>discEl.style.border='',3000);  return; }
+    if (!tipoEl.value)  { tipoEl.style.border='2px solid var(--danger)';  toast('⚠ Selecione o tipo de atendimento.','error'); setTimeout(()=>tipoEl.style.border='',3000);  return; }
+    if (!andarEl.value) { andarEl.style.border='2px solid var(--danger)'; toast('⚠ Informe o andar/pavimento.','error');       setTimeout(()=>andarEl.style.border='',3000); return; }
   }
   if (n===3) {
-    const tipoEl = document.getElementById('nr-tipo-atendimento');
     const ativEl = document.getElementById('nr-atividade');
-    if (!tipoEl.value) {
-      tipoEl.style.border = '2px solid var(--danger)';
-      tipoEl.focus();
-      toast('⚠ Selecione o Tipo de Atendimento antes de revisar.','error');
-      setTimeout(() => tipoEl.style.border = '', 3000);
-      return;
-    }
     if (!ativEl.value) {
       ativEl.style.border = '2px solid var(--danger)';
       ativEl.focus();
