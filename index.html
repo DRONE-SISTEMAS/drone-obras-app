@@ -944,6 +944,71 @@ function confirmar(msg, titulo = 'Confirmar exclusão', okLabel = 'Excluir') {
   document.getElementById('modal-confirm').style.display = 'flex';
   return new Promise(res => { _confirmResolve = res; });
 }
+function todayFolder() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// ── PROGRESS BAR ──────────────────────────────────────
+function addUpStep(msg, type) {
+  const el = document.getElementById('up-steps');
+  if (!el) return;
+  const div = document.createElement('div');
+  div.className = 'up-step ' + (type||'');
+  div.textContent = msg;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+function setUpStep(msg, pct) {
+  const title = document.getElementById('up-title-text');
+  if (title) title.textContent = msg;
+  if (pct) setUpBar(pct);
+  addUpStep(msg, 'active');
+}
+function setUpBar(pct) {
+  const bar = document.getElementById('up-bar');
+  if (bar) bar.style.width = pct + '%';
+}
+
+// ── RENDER REPORTS ────────────────────────────────────
+function renderReports() {
+  const tbody = document.getElementById('reports-tbody');
+  if (!tbody) return;
+  if (!reports.length) {
+    tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;color:var(--text2);padding:32px">Nenhum relatório encontrado.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = reports.map((r,i) => {
+    const nome    = r.projetoNome || r.projeto_nome || '—';
+    const cc      = r.cc || '';
+    const disc    = r.disciplina || '—';
+    const atv     = r.atividade || '—';
+    const tec     = r.tecnico || '—';
+    const data    = fmtDate(r.createdAt || r.created_at);
+    const odUrl   = r.odWebUrl || r.od_web_url;
+    return `<tr>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)">${String(i+1).padStart(3,'0')}</td>
+      <td><strong>${nome}</strong><br><span style="font-size:11px;color:var(--text2)">${cc}</span></td>
+      <td>${disc}</td>
+      <td>${atv}</td>
+      <td>${tec}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${data}</td>
+      <td>${statusChip(r.status)}</td>
+      <td><button class="btn btn-od btn-sm" style="padding:2px 8px;font-size:11px" onclick="event.stopPropagation();sincronizarEAbrirRelatorio('${r.id}',this)">🔗 Ver</button></td>
+      <td>
+        <button class="btn btn-od btn-sm" onclick="sincronizarEAbrirRelatorio('${r.id}',this)">
+          🔗 ${odUrl ? 'OneDrive' : 'Sincronizar'}
+        </button>
+        ${r.odDayFolder||r.od_day_folder ? `<br><span style="font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace">${r.odDayFolder||r.od_day_folder}</span>` : ''}
+      </td>
+      <td>
+        <button class="btn btn-secondary btn-sm" onclick="openReport('${r.id}')">Ver</button>
+        ${currentUser.role==='gestor' ? `<button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="deleteReport('${r.id}')">✕</button>` : ''}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
 function confirmarResp(ok) {
   document.getElementById('modal-confirm').style.display = 'none';
   if (_confirmResolve) { _confirmResolve(ok); _confirmResolve = null; }
@@ -1005,7 +1070,7 @@ async function loadReports() {
   // Técnico vê próprios relatórios; gestor vê todos
   const { data, error } = currentUser.role === 'gestor'
     ? await q
-    : await q.or(`tecnico_email.eq.${currentUser.email},tecnicoEmail.eq.${currentUser.email}`);
+    : await q.eq('tecnico_email', currentUser.email);
   if (error) { console.error('loadReports:', error); }
   // Normalizar campos snake_case → camelCase para compatibilidade com o app
   reports = (data || []).map(r => ({
@@ -1288,15 +1353,27 @@ async function submitReport() {
   setUpStep('Salvando relatório…', 10);
   try {
     const { error } = await window._sb.from('reports').upsert({
-      ...report,
-      created_at: report.createdAt,
-      tecnico_email: report.tecnicoEmail,
-      projeto_id: report.projetoId,
-      projeto_nome: report.projetoNome,
-      tipo_atendimento: report.tipoAtendimento,
-      foto_count: report.fotoCount || 0,
-      od_web_url: report.odWebUrl || null,
-      od_day_folder: report.odDayFolder || null,
+      id:              report.id,
+      projeto_id:      report.projetoId      || null,
+      projeto_nome:    report.projetoNome    || null,
+      cc:              report.cc             || null,
+      cliente:         report.cliente        || null,
+      gestor:          report.gestor         || null,
+      tecnico:         report.tecnico        || null,
+      tecnico_email:   report.tecnicoEmail   || null,
+      disciplina:      report.disciplina     || null,
+      tipo_atendimento:report.tipoAtendimento|| null,
+      atividade:       report.atividade      || null,
+      status:          report.status         || null,
+      andar:           report.andar          || null,
+      area:            report.area           || null,
+      sala:            report.sala           || null,
+      obs:             report.obs            || null,
+      fotos:           report.fotos          || [],
+      foto_count:      report.fotoCount      || 0,
+      od_web_url:      report.odWebUrl       || null,
+      od_day_folder:   report.odDayFolder    || null,
+      created_at:      report.createdAt,
     });
     if (error) throw error;
     addUpStep('Relatório salvo ✓', 'done');
@@ -1359,12 +1436,15 @@ async function submitReport() {
   // ── Upload OneDrive ──
   // Recarregar projeto do DB para garantir IDs atualizados
   let projAtual = proj;
-  {
-    try {
-      const snap = await db.collection('projects').doc(pid).get();
-      if (snap) projAtual = snap.data() || proj;
-    } catch(e) {}
-  }
+  try {
+    const { data: pSnap } = await window._sb.from('projects').select('*').eq('id', pid).single();
+    if (pSnap) projAtual = {
+      ...pSnap,
+      odDriveId: pSnap.od_drive_id || pSnap.odDriveId,
+      odItemId:  pSnap.od_item_id  || pSnap.odItemId,
+      odPath:    pSnap.od_path     || pSnap.odPath,
+    };
+  } catch(e) {}
 
   if (projAtual.odDriveId && projAtual.odItemId) {
     try {
@@ -1381,15 +1461,13 @@ async function submitReport() {
   setUpBar(100);
   document.getElementById('up-title-text').textContent = 'Concluído!';
 
-  // ── Atualizar DB com odWebUrl e odDayFolder retornados pelo upload ──
-  {
-    try {
-      await db.collection('reports').doc(reportId).update({
-        odWebUrl: report.odWebUrl || null,
-        odDayFolder: report.odDayFolder || null,
-      });
-    } catch(e) {}
-  }
+  // ── Atualizar Supabase com odWebUrl e odDayFolder ──
+  try {
+    await window._sb.from('reports').update({
+      od_web_url:    report.odWebUrl    || null,
+      od_day_folder: report.odDayFolder || null,
+    }).eq('id', reportId);
+  } catch(e) {}
 
   btn.innerHTML = '✓ Enviado!';
   backBtn.disabled = false;
@@ -2178,10 +2256,10 @@ async function doSetup() {
   if (senha.length < 6) { err.textContent = 'A senha deve ter pelo menos 6 caracteres.'; err.style.display = 'block'; return; }
 
   const u = { id:'u'+Date.now(), name:nome, email, role:'gestor', senha };
-  {
-    try { await db.collection('users').doc(u.id).set(u); }
-    catch(e) { err.textContent = 'Erro ao salvar. Tente novamente.'; err.style.display = 'block'; return; }
-  }
+  try {
+    const { error } = await window._sb.from('users').upsert(u);
+    if (error) throw error;
+  } catch(e) { err.textContent = 'Erro ao salvar. Tente novamente.'; err.style.display = 'block'; return; }
   users = [u];
 
   document.getElementById('screen-setup').style.display = 'none';
