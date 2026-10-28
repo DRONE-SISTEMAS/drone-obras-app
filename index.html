@@ -2077,77 +2077,47 @@ async function validateOdPath() {
 
   const statusEl = document.getElementById('od-validation-status');
   statusEl.style.display = 'block';
-  statusEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2)"><span class="spinner"></span> Buscando pasta no SharePoint/OneDrive…</div>`;
+  statusEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2)"><span class="spinner"></span> Resolvendo URL do SharePoint…</div>`;
 
   try {
-    // Extrair último segmento do caminho como nome de busca
-    const segments = path.replace(/\\/g,'/').split('/').map(s=>s.trim()).filter(Boolean);
-    // Tenta do mais específico para o mais genérico
-    let found = null;
-    for (let i = segments.length - 1; i >= 0 && !found; i--) {
-      const folderName = segments[i];
-      if (!folderName || folderName.startsWith('http')) continue;
-      const token = await obterTokenGestor();
-      if (!token) throw new Error('Token Microsoft não disponível. Clique em "Conectar OneDrive" no topo do app.');
-      // Busca pela pasta via Graph API usando search
-      const searchResp = await fetch(
-        `https://graph.microsoft.com/v1.0/drives/${document.getElementById('proj-od-drive-id').value}/root/search(q='${encodeURIComponent(folderName)}')`,
-        { headers: { 'Authorization': `Bearer ${token}` } }
-      );
-      const raw = await searchResp.json();
+    const token = await obterTokenGestor();
+    if (!token) throw new Error('Token Microsoft não disponível. Clique em "Conectar OneDrive" no topo.');
 
-      // Normalizar: pode vir como array, objeto com .items, objeto direto ou string JSON
-      let items = [];
-      if (Array.isArray(raw))                   items = raw;
-      else if (Array.isArray(raw?.items))        items = raw.items;
-      else if (Array.isArray(raw?.value))        items = raw.value;
-      else if (raw?.driveId || raw?.id)          items = [raw];
-      else if (typeof raw === 'string') {
-        try { const p = JSON.parse(raw); items = Array.isArray(p) ? p : (p.items||p.value||[p]); } catch(_) {}
+    // Usar endpoint /shares para resolver qualquer URL do SharePoint/OneDrive
+    // Encode a URL em base64url conforme documentação do Graph API
+    const encoded = btoa(path).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
+    const shareUrl = `https://graph.microsoft.com/v1.0/shares/u!${encoded}/driveItem`;
+
+    const resp = await fetch(shareUrl, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (resp.ok) {
+      const item = await resp.json();
+      const driveId = item.parentReference?.driveId || item.remoteItem?.parentReference?.driveId || '';
+      const itemId  = item.id || item.remoteItem?.id || '';
+      const webUrl  = item.webUrl || path;
+      const name    = item.name || '';
+
+      if (driveId && itemId) {
+        document.getElementById('proj-od-drive-id').value = driveId;
+        document.getElementById('proj-od-item-id').value  = itemId;
+        showOdValidated(webUrl, false);
+        toast(`Pasta "${name||'OneDrive'}" validada ✓`, 'od');
+      } else {
+        throw new Error('Drive ID ou Item ID não retornados pela API.');
       }
-
-      // Campos retornados pelo sharepoint_folder_search
-      for (const item of items) {
-        const dId  = item.driveId || item.parentReference?.driveId || '';
-        const iId  = item.itemId  || item.id || '';
-        const wUrl = item.webUrl  || '';
-
-        if (dId && iId) {
-          // Preferir o item cujo nome ou webUrl bate melhor com o path informado
-          const nameMatch = path.toLowerCase().includes((item.name||'').toLowerCase());
-          const urlMatch  = path.toLowerCase().includes((wUrl||'').toLowerCase().replace('https://',''));
-          if (nameMatch || urlMatch || items.length === 1) {
-            found = { driveId: dId, itemId: iId, webUrl: wUrl, name: item.name||'' };
-            break;
-          }
-          // Guarda o primeiro válido como fallback
-          if (!found) found = { driveId: dId, itemId: iId, webUrl: wUrl, name: item.name||'' };
-        }
-      }
-    }
-
-    if (found) {
-      document.getElementById('proj-od-drive-id').value = found.driveId;
-      document.getElementById('proj-od-item-id').value  = found.itemId;
-      showOdValidated(found.webUrl || path, false);
-      toast(`Pasta "${found.name||'OneDrive'}" encontrada e validada!`, 'od');
     } else {
-      // Não encontrou — liberar campos para preenchimento manual
-      unlockOdFields();
-      statusEl.innerHTML = `<div style="background:var(--warn-dim);border:1px solid rgba(247,164,26,0.4);border-radius:var(--radius);padding:12px 14px;font-size:12px">
-        <strong style="color:var(--warn)">⚠ Pasta não encontrada automaticamente</strong><br>
-        <span style="color:var(--text2)">Preencha o <strong>Drive ID</strong> e o <strong>Item ID</strong> manualmente nos campos abaixo.<br>
-        Para obter os valores: abra a pasta no SharePoint → clique em <em>⋯ Detalhes</em> → copie o ID da biblioteca (Drive ID) e o ID do item (Item ID).<br>
-        Ou acesse a URL e extraia os parâmetros <code>driveId</code> e <code>id</code>.</span>
-      </div>`;
+      const err = await resp.json().catch(()=>({}));
+      throw new Error(err?.error?.message || `Erro ${resp.status} ao resolver URL`);
     }
+
   } catch(e) {
-    // Erro de conexão — liberar campos para entrada manual
     unlockOdFields();
     statusEl.innerHTML = `<div style="background:var(--danger-dim);border:1px solid rgba(229,83,75,0.4);border-radius:var(--radius);padding:12px 14px;font-size:12px">
-      <strong style="color:var(--danger)">Não foi possível conectar ao OneDrive</strong><br>
-      <span style="color:var(--text2)">${e.message||'Verifique se o Microsoft 365 está conectado em Configurações → Conectores.'}</span><br>
-      <span style="color:var(--text3);font-size:11px;margin-top:6px;display:block">Você pode preencher o Drive ID e Item ID manualmente abaixo e salvar o projeto normalmente.</span>
+      <strong style="color:var(--danger)">Não foi possível resolver a URL</strong><br>
+      <span style="color:var(--text2)">${e.message}</span><br>
+      <span style="color:var(--text3);font-size:11px;margin-top:6px;display:block">Cole manualmente o Drive ID e Item ID nos campos abaixo.</span>
     </div>`;
   }
 
