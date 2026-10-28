@@ -1113,8 +1113,22 @@ function goStep(n) {
     if (!document.getElementById('nr-andar').value) { toast('Informe o andar/pavimento.','error'); return; }
   }
   if (n===3) {
-    if (!document.getElementById('nr-tipo-atendimento').value) { toast('Selecione o tipo de atendimento.','error'); return; }
-    if (!document.getElementById('nr-atividade').value) { toast('Selecione o tipo de atividade.','error'); return; }
+    const tipoEl = document.getElementById('nr-tipo-atendimento');
+    const ativEl = document.getElementById('nr-atividade');
+    if (!tipoEl.value) {
+      tipoEl.style.border = '2px solid var(--danger)';
+      tipoEl.focus();
+      toast('⚠ Selecione o Tipo de Atendimento antes de revisar.','error');
+      setTimeout(() => tipoEl.style.border = '', 3000);
+      return;
+    }
+    if (!ativEl.value) {
+      ativEl.style.border = '2px solid var(--danger)';
+      ativEl.focus();
+      toast('⚠ Selecione a Atividade antes de revisar.','error');
+      setTimeout(() => ativEl.style.border = '', 3000);
+      return;
+    }
     buildPreview();
   }
   [1,2,3].forEach(i => {
