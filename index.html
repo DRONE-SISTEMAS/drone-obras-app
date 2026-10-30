@@ -25,7 +25,8 @@
   .topbar-logo .sub { font-weight: 400; font-size: 12px; color: var(--text2); margin-left: 2px; }
   .topbar-right { display: flex; align-items: center; gap: 12px; }
   .badge-role { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px; }
-  .badge-role.gestor { background: var(--accent-dim); color: var(--accent); }
+  .badge-role.admin   { background: #3d1a7a22; color: #7c3aed; }
+  .badge-role.gestor  { background: var(--accent-dim); color: var(--accent); }
   .badge-role.tecnico { background: var(--success-dim); color: var(--success); }
   .user-chip { display: flex; align-items: center; gap: 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px 4px 4px; font-size: 12px; }
   .avatar { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: white; flex-shrink: 0; }
@@ -681,7 +682,11 @@
       </div>
       <div class="form-row cols-2">
         <div class="form-group"><label>Perfil *</label>
-          <select id="user-perfil"><option value="tecnico">Técnico</option><option value="gestor">Gestor</option></select>
+          <select id="user-perfil">
+            <option value="tecnico">Técnico</option>
+            <option value="gestor" id="opt-gestor-parcial">Gestor Parcial</option>
+            <option value="admin" id="opt-admin" style="display:none">Admin (Faz Tudo)</option>
+          </select>
         </div>
         <div class="form-group"><label id="user-senha-label">Senha * <span style="font-weight:400;color:var(--text3)">(definida pelo gestor)</span></label>
           <div style="display:flex;gap:8px">
@@ -839,7 +844,7 @@ async function getGraphToken() {
 
 // ── FILA DE RELATÓRIOS PENDENTES NO ONEDRIVE ─────────────────────────────
 async function processarFilaOneDrive() {
-  if (currentUser?.role !== 'gestor') return;
+  if (!['admin','gestor'].includes(currentUser?.role)) return;
   try {
     const { data: pendentes } = await window._sb.from('reports')
       .select('*').eq('od_pending', true).limit(20);
@@ -880,7 +885,7 @@ async function processarFilaOneDrive() {
 function atualizarBotaoMicrosoft() {
   const btn = document.getElementById('btn-ms-connect');
   if (!btn) return;
-  if (currentUser?.role !== 'gestor') { btn.style.display = 'none'; return; }
+  if (!['admin','gestor'].includes(currentUser?.role)) { btn.style.display = 'none'; return; }
   const msIcon = `<svg viewBox="0 0 21 21" style="width:13px;height:13px;vertical-align:-2px;margin-right:3px"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>`;
   const expires  = currentUser?.graph_expires_at ? new Date(currentUser.graph_expires_at) : null;
   const valido   = currentUser?.graph_token && expires && expires > new Date();
@@ -923,7 +928,7 @@ function showApp() {
     loadUsers();
     showScreen('s-dashboard');
     // Processar fila de relatórios pendentes se gestor já tiver token
-    if (currentUser?.role === 'gestor' && currentUser?.graph_token) {
+    if (['admin','gestor'].includes(currentUser?.role) && currentUser?.graph_token) {
       setTimeout(() => processarFilaOneDrive(), 3000);
     }
   });
@@ -933,7 +938,7 @@ function showApp() {
   const tr = document.getElementById('topbar-role');
   if (tu) tu.textContent = currentUser.name || currentUser.email;
   if (ta) ta.textContent = (currentUser.name||'?')[0].toUpperCase();
-  if (tr) tr.textContent = currentUser.role === 'gestor' ? 'Gestor' : 'Técnico';
+  if (tr) tr.textContent = currentUser.role === 'admin' ? 'Admin' : currentUser.role === 'gestor' ? 'Gestor' : 'Técnico';
 }
 
 function showLogin() {
@@ -1031,7 +1036,11 @@ function doLogout() {
 //  NAV
 // ═══════════════════════════════════════════════════════
 function buildNav() {
-  const isG = currentUser.role === 'gestor';
+  const role  = currentUser.role;
+  const isAdmin  = role === 'admin';
+  const isGestor = role === 'gestor';
+  const isTec    = role === 'tecnico';
+
   document.getElementById('sidebar').innerHTML = `
     <div class="nav-section">
       <div class="nav-label">Menu</div>
@@ -1039,7 +1048,7 @@ function buildNav() {
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
         Painel
       </div>
-      ${!isG ? `<div class="nav-item" data-screen="s-new-report" onclick="showScreen('s-new-report')">
+      ${isTec ? `<div class="nav-item" data-screen="s-new-report" onclick="showScreen('s-new-report')">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1v14M1 8h14"/></svg>
         Novo Relatório
       </div>` : ''}
@@ -1047,12 +1056,17 @@ function buildNav() {
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 2h12v12H2z"/><path d="M5 6h6M5 9h4"/></svg>
         Relatórios
       </div>
-      ${isG ? `
-      <div class="nav-label" style="margin-top:12px">Administração</div>
+
+      ${(isAdmin || isGestor) ? `
+      <div class="nav-label" style="margin-top:12px">Administração</div>` : ''}
+
+      ${isAdmin ? `
       <div class="nav-item" data-screen="s-projects" onclick="showScreen('s-projects')">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="14" height="10" rx="1.5"/><path d="M5 4V2.5A1.5 1.5 0 016.5 1h3A1.5 1.5 0 0111 2.5V4"/></svg>
         Projetos
-      </div>
+      </div>` : ''}
+
+      ${(isAdmin || isGestor) ? `
       <div class="nav-item" data-screen="s-users" onclick="showScreen('s-users')">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="3"/><path d="M1 14c0-3.3 3.1-6 7-6s7 2.7 7 6"/></svg>
         Usuários
@@ -1141,7 +1155,7 @@ function renderReports() {
 function renderFilteredReports(list) {
   const tbody = document.getElementById('reports-tbody');
   if (!tbody) return;
-  const isGestor = currentUser.role === 'gestor';
+  const isGestor = currentUser.role === 'admin' || currentUser.role === 'gestor';
   // Atualizar thead por perfil
   const thead = tbody.closest('table')?.querySelector('thead tr');
   if (thead) {
@@ -1278,9 +1292,17 @@ async function loadProjects() {
 
 async function loadReports() {
   const q = window._sb.from('reports').select('*').order('created_at', { ascending: false });
-  const { data, error } = currentUser.role === 'gestor'
-    ? await q
-    : await q.eq('tecnico_email', currentUser.email);
+  let qFinal;
+  if (currentUser.role === 'admin') {
+    qFinal = q; // admin vê tudo
+  } else if (currentUser.role === 'gestor') {
+    // gestor parcial vê relatórios dos projetos atribuídos a ele
+    const meusProjs = projects.filter(p => (p.gestorEmail||p.gestor_email) === currentUser.email).map(p=>p.id);
+    qFinal = meusProjs.length ? q.in('projeto_id', meusProjs) : q.eq('projeto_id', 'none');
+  } else {
+    qFinal = q.eq('tecnico_email', currentUser.email);
+  }
+  const { data, error } = await qFinal;
   if (error) { console.error('loadReports:', error); }
   reports = (data || []).map(r => ({
     ...r,
@@ -1306,8 +1328,8 @@ async function loadUsers() {
 //  DASHBOARD
 // ═══════════════════════════════════════════════════════
 function renderDashboard() {
-  const myP = currentUser.role === 'gestor' ? projects : projects.filter(p=>(p.users||[]).includes(currentUser.email));
-  const myR = currentUser.role === 'gestor' ? reports : reports.filter(r=>r.tecnicoEmail===currentUser.email);
+  const myP = currentUser.role === 'admin' ? projects : currentUser.role === 'gestor' ? projects.filter(p=>(p.gestorEmail||p.gestor_email)===currentUser.email) : projects.filter(p=>(p.users||[]).includes(currentUser.email));
+  const myR = currentUser.role === 'admin' ? reports : currentUser.role === 'gestor' ? reports.filter(r=>{ const p=projects.find(x=>x.id===(r.projetoId||r.projeto_id)); return (p?.gestorEmail||p?.gestor_email)===currentUser.email; }) : reports.filter(r=>r.tecnicoEmail===currentUser.email);
   const concluded = myR.filter(r=>r.status==='Concluído').length;
   const pending   = myR.filter(r=>r.status==='Pendência').length;
   document.getElementById('dash-sub').textContent = `Olá, ${currentUser.name.split(' ')[0]}! Resumo dos seus projetos.`;
@@ -1338,7 +1360,7 @@ function resetNewReport() {
   document.getElementById('upload-progress-box').style.display = 'none';
   const sel = document.getElementById('nr-projeto');
   sel.innerHTML = '<option value="">Selecione…</option>';
-  const myP = currentUser.role === 'gestor' ? projects : projects.filter(p=>(p.users||[]).includes(currentUser.email));
+  const myP = currentUser.role === 'admin' ? projects : currentUser.role === 'gestor' ? projects.filter(p=>(p.gestorEmail||p.gestor_email)===currentUser.email) : projects.filter(p=>(p.users||[]).includes(currentUser.email));
   myP.forEach(p => { const o = document.createElement('option'); o.value = p.id; o.textContent = `${p.nome} (${p.cc})`; sel.appendChild(o); });
   ['nr-disciplina','nr-tipo-atendimento','nr-atividade','nr-status','nr-obs','nr-andar','nr-area','nr-sala'].forEach(id => {
     const el = document.getElementById(id); if (!el) return;
@@ -2346,9 +2368,10 @@ async function obterTokenGestor() {
 
   // 2. Buscar token de gestor no Supabase e renovar via refresh_token se necessário
   try {
+    // Buscar token do gestor do projeto ou de qualquer admin/gestor com token
     const { data: gestores } = await window._sb
       .from('users').select('id, graph_token, graph_refresh_token, graph_expires_at')
-      .eq('role','gestor').not('graph_token','is',null).limit(1);
+      .in('role',['admin','gestor']).not('graph_token','is',null).limit(5);
 
     if (gestores?.length) {
       const g = gestores[0];
@@ -2480,15 +2503,38 @@ async function saveProject() {
 //  USUÁRIOS
 // ═══════════════════════════════════════════════════════
 function renderUsers() {
-  if (!users.length) {
-    document.getElementById('users-tbody').innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:32px">Nenhum usuário cadastrado.</td></tr>`;
+  const isAdmin  = currentUser.role === 'admin';
+  const isGestor = currentUser.role === 'gestor';
+
+  // Gestor parcial só vê técnicos dos seus projetos
+  let listaUsers = users;
+  if (isGestor) {
+    const meusProjs = projects.filter(p=>(p.gestorEmail||p.gestor_email)===currentUser.email);
+    const tecnicosPermitidos = new Set(meusProjs.flatMap(p=>p.users||[]));
+    listaUsers = users.filter(u => u.role === 'tecnico' && tecnicosPermitidos.has(u.email));
+  }
+
+  // Atualizar opções do select de perfil no modal
+  const optGestor = document.getElementById('opt-gestor-parcial');
+  const optAdmin  = document.getElementById('opt-admin');
+  if (optGestor) optGestor.style.display = isAdmin ? '' : 'none';
+  if (optAdmin)  optAdmin.style.display  = isAdmin ? '' : 'none';
+
+  const roleChip = r => r==='admin'
+    ? '<span class="chip" style="background:#3d1a7a22;color:#7c3aed">Admin</span>'
+    : r==='gestor'
+      ? '<span class="chip chip-blue">Gestor</span>'
+      : '<span class="chip chip-green">Técnico</span>';
+
+  if (!listaUsers.length) {
+    document.getElementById('users-tbody').innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:32px">Nenhum usuário encontrado.</td></tr>`;
     return;
   }
-  document.getElementById('users-tbody').innerHTML = users.map(u=>`
+  document.getElementById('users-tbody').innerHTML = listaUsers.map(u=>`
     <tr>
       <td><strong>${u.name}</strong></td>
       <td style="font-size:12px;color:var(--text2)">${u.email}</td>
-      <td>${u.role==='gestor'?'<span class="chip chip-blue">Gestor</span>':'<span class="chip chip-green">Técnico</span>'}</td>
+      <td>${roleChip(u.role)}</td>
       <td>
         <div style="display:flex;align-items:center;gap:6px">
           <code id="pwd-${u.id}" style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--surface2);padding:2px 7px;border-radius:4px;letter-spacing:0.5px;display:none">${u.senha||'—'}</code>
@@ -2498,9 +2544,9 @@ function renderUsers() {
       </td>
       <td><span class="chip chip-blue">${projects.filter(p=>(p.users||[]).includes(u.email)).length}</span></td>
       <td>
-        <button class="btn btn-secondary btn-sm" onclick="editUser('${u.id}')">Editar</button>
+        ${u.role !== 'admin' || isAdmin ? `<button class="btn btn-secondary btn-sm" onclick="editUser('${u.id}')">Editar</button>` : ''}
         <button class="btn btn-od btn-sm" style="margin-left:4px" onclick="resetSenha('${u.id}')">🔑 Senha</button>
-        <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="deleteUser('${u.id}')">✕</button>
+        ${(isAdmin || (isGestor && u.role==='tecnico')) ? `<button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="deleteUser('${u.id}')">✕</button>` : ''}
       </td>
     </tr>`).join('');
 }
@@ -2578,6 +2624,15 @@ async function saveUser() {
 
   if (!nome || (!editId && !email)) { toast('Nome e e-mail são obrigatórios.','error'); return; }
   if (!editId && !senha) { toast('Defina uma senha para o novo usuário.','error'); return; }
+
+  // Gestor parcial só pode criar/editar técnicos
+  if (currentUser.role === 'gestor' && role !== 'tecnico') {
+    toast('Gestor Parcial só pode criar usuários Técnicos.','error'); return;
+  }
+  // Apenas admin pode criar outro admin
+  if (currentUser.role !== 'admin' && role === 'admin') {
+    toast('Apenas o Admin pode criar outros Admins.','error'); return;
+  }
 
   // Verificar e-mail duplicado ao criar
   if (!editId && users.find(u => u.email === email)) {
