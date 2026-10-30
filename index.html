@@ -353,10 +353,11 @@
                   <option>CFTV</option>
                   <option>Controle de Acesso</option>
                   <option>Cabeamento Estruturado</option>
-                  <option>Automação de Ar Condicionado</option>
-                  <option>Energia</option>
                   <option>Automação Predial</option>
-                  <option>Telefonia</option>
+                  <option>Alarme Intrusão</option>
+                  <option>Sonorização</option>
+                  <option>Audio e Video</option>
+                  <option>Outros</option>
                 </select>
               </div>
             </div>
@@ -434,9 +435,9 @@
             <h3>Registro Fotográfico</h3>
             <!-- Inputs ocultos -->
             <!-- Galeria: sem capture para permitir múltiplas fotos em iOS e Android -->
-            <input type="file" id="photo-input" accept="image/*" multiple onchange="handlePhotoInput(this)" style="display:none">
+            <input type="file" id="photo-input" accept="image/*,video/*" multiple onchange="handlePhotoInput(this)" style="display:none">
             <!-- Câmera: capture=environment abre câmera traseira no Android -->
-            <input type="file" id="photo-camera" accept="image/*" capture="environment" onchange="handlePhotoInput(this)" style="display:none">
+            <input type="file" id="photo-camera" accept="image/*,video/*" capture="environment" onchange="handlePhotoInput(this)" style="display:none">
             <!-- Botões explícitos -->
             <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
               <button class="btn btn-secondary" style="flex:1;min-width:130px" onclick="document.getElementById('photo-camera').click()">
@@ -486,8 +487,15 @@
           <select id="filter-proj" onchange="filterReports()" style="max-width:240px"><option value="">Todos os projetos</option></select>
           <select id="filter-disc" onchange="filterReports()" style="max-width:180px">
             <option value="">Todas as disciplinas</option>
-            <option>Detecção e Alarme de Incêndio</option><option>CFTV</option><option>Controle de Acesso</option>
-            <option>Cabeamento Estruturado</option><option>Automação de Ar Condicionado</option>
+            <option>Detecção e Alarme de Incêndio</option>
+            <option>CFTV</option>
+            <option>Controle de Acesso</option>
+            <option>Cabeamento Estruturado</option>
+            <option>Automação Predial</option>
+            <option>Alarme Intrusão</option>
+            <option>Sonorização</option>
+            <option>Audio e Video</option>
+            <option>Outros</option>
           </select>
           <select id="filter-status" onchange="filterReports()" style="max-width:160px">
             <option value="">Todos os status</option>
@@ -1363,14 +1371,24 @@ function handlePhotoInput(input) { processFiles(Array.from(input.files)); }
 function handlePhotoDrop(ev) {
   ev.preventDefault();
   document.getElementById('photo-drop').classList.remove('drag');
-  processFiles(Array.from(ev.dataTransfer.files).filter(f=>f.type.startsWith('image/')));
+  processFiles(Array.from(ev.dataTransfer.files).filter(f=>f.type.startsWith('image/')||f.type.startsWith('video/')));
 }
+const MAX_FILE_MB = 5;
+
 function processFiles(files) {
   if (!files.length) return;
 
-  // Processar fotos IMEDIATAMENTE (sem aguardar GPS — iframe bloqueia getCurrentPosition)
-  // GPS é tentado em paralelo e atualiza as fotos se vier a tempo
-  files.forEach(f => readPhoto(f, null));
+  // Validar tamanho — máximo 5MB por arquivo
+  const grandes = files.filter(f => f.size > MAX_FILE_MB * 1024 * 1024);
+  if (grandes.length) {
+    const nomes = grandes.map(f => `${f.name} (${(f.size/1024/1024).toFixed(1)} MB)`).join('\n');
+    toast(`⚠ Limite de ${MAX_FILE_MB}MB excedido:\n${nomes}\n\nArquivo(s) não adicionado(s).`, 'error');
+  }
+  const validos = files.filter(f => f.size <= MAX_FILE_MB * 1024 * 1024);
+  if (!validos.length) return;
+
+  // Processar fotos IMEDIATAMENTE (GPS em background)
+  validos.forEach(f => readPhoto(f, null));
 
   // Tentar GPS em background — atualiza as últimas N fotos se responder
   if (navigator.geolocation) {
@@ -1636,9 +1654,21 @@ async function submitReport() {
 async function uploadToOneDrive(report, proj) {
   const todayStr = todayFolder();
   const dtObj    = new Date(report.createdAt);
-  // Nome do arquivo = número do documento (últimos 6 dígitos do ID)
-  const docNum   = report.id.replace('R','').slice(-6);
-  const filename = docNum;
+  // Nome do arquivo = SIGLA_docNum (ex: SDAI_519964)
+  const docNum = report.id.replace('R','').slice(-6);
+  const siglasDisc = {
+    'Detecção e Alarme de Incêndio': 'SDAI',
+    'CFTV':                          'CFTV',
+    'Controle de Acesso':            'CA',
+    'Cabeamento Estruturado':        'CAB',
+    'Automação Predial':             'BMS',
+    'Alarme Intrusão':               'ALM',
+    'Sonorização':                   'SOM',
+    'Audio e Video':                 'AV',
+    'Outros':                        'OTR',
+  };
+  const sigla   = siglasDisc[report.disciplina] || 'REL';
+  const filename = `${sigla}_${docNum}`;
 
   addUpStep('Conectando ao OneDrive…', 'active');
   setUpBar(20);
