@@ -1266,8 +1266,8 @@ function showScreen(id) {
   // Renderizar conteúdo da screen
   if (id === 's-dashboard')   renderDashboard();
   if (id === 's-reports')     loadReports().then(renderReports);
-  if (id === 's-projects')    renderProjects();
-  if (id === 's-users')       renderUsers();
+  if (id === 's-projects')    { loadProjects().then(renderProjects); }
+  if (id === 's-users')       { loadUsers().then(renderUsers); }
   if (id === 's-new-report')  resetNewReport();
 }
 
@@ -2668,23 +2668,22 @@ async function saveUser() {
   }
 
   if (editId) {
-    // Edição
     const idx = users.findIndex(u=>u.id===editId);
     if (idx < 0) return;
-    users[idx].name = nome;
-    users[idx].role = role;
+    users[idx] = { ...users[idx], name: nome, role };
     if (senha) users[idx].senha = senha;
-    try { await window._sb.from('users').upsert(users[idx]); } catch(e) {}
+    const { error: errEdit } = await window._sb.from('users').upsert(users[idx]);
+    if (errEdit) { toast(`Erro ao atualizar: ${errEdit.message}`, 'error'); return; }
     toast(`Usuário ${nome} atualizado.`, 'success');
   } else {
-    // Criação — salvar quem criou para filtro do gestor parcial
-    const u = { id:'u'+Date.now(), name:nome, email, role, senha, created_by: currentUser.email };
-    users.push(u);
-    try { await window._sb.from('users').upsert(u); } catch(e) {}
+    const u = { id: 'u' + Date.now(), name: nome, email, role, senha, created_by: currentUser.email };
+    const { error: errCreate } = await window._sb.from('users').upsert(u);
+    if (errCreate) { toast(`Erro ao criar usuário: ${errCreate.message}`, 'error'); return; }
     toast(`Usuário ${nome} criado. Senha: ${senha}`, 'success');
   }
 
   closeModal('modal-user');
+  await loadUsers();
   renderUsers();
 }
 
