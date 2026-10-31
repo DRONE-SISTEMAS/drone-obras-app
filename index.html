@@ -1221,12 +1221,42 @@ async function deleteReport(id) {
 
 async function deleteProject(id) {
   const proj = projects.find(x=>x.id===id);
-  const ok   = await confirmar(`Excluir o projeto "${proj?.nome||id}"?`, 'Excluir projeto');
+  const relsVinculados = reports.filter(r=>(r.projetoId||r.projeto_id)===id);
+  const totalRels = relsVinculados.length;
+
+  const ok = await confirmar(
+    `Excluir o projeto "${proj?.nome||id}"?\n\n${totalRels > 0 ? `⚠ ${totalRels} relatório(s) vinculado(s) também serão excluídos do app e do Storage.\nOs arquivos no OneDrive NÃO serão removidos.` : 'Nenhum relatório vinculado.'}`,
+    'Excluir projeto'
+  );
   if (!ok) return;
-  const { error } = await window._sb.from('projects').delete().eq('id', id);
-  if (error) { toast(`Erro ao excluir projeto: ${error.message}`, 'error'); return; }
+
+  toast('Excluindo projeto e relatórios…', 'info');
+
+  // 1. Excluir fotos do Supabase Storage
+  for (const rel of relsVinculados) {
+    const fotos = rel.fotos || [];
+    for (const f of fotos) {
+      if (f.assetUrl) {
+        // Extrair path do Storage a partir da URL pública
+        try {
+          const path = f.assetUrl.split('/fotos-relatorios/')[1];
+          if (path) await window._sb.storage.from('fotos-relatorios').remove([path]);
+        } catch(_) {}
+      }
+    }
+  }
+
+  // 2. Excluir relatórios do banco
+  const { error: errRels } = await window._sb.from('reports').delete().eq('projeto_id', id);
+  if (errRels) { toast(`Erro ao excluir relatórios: ${errRels.message}`, 'error'); return; }
+
+  // 3. Excluir projeto do banco
+  const { error: errProj } = await window._sb.from('projects').delete().eq('id', id);
+  if (errProj) { toast(`Erro ao excluir projeto: ${errProj.message}`, 'error'); return; }
+
   await loadProjects();
-  toast('Projeto removido.', 'info');
+  await loadReports();
+  toast(`Projeto "${proj?.nome||id}" e ${totalRels} relatório(s) removidos.`, 'info');
   renderProjects();
 }
 
