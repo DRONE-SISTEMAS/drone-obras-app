@@ -1048,10 +1048,10 @@ function buildNav() {
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
         Painel
       </div>
-      ${isTec ? `<div class="nav-item" data-screen="s-new-report" onclick="showScreen('s-new-report')">
+      <div class="nav-item" data-screen="s-new-report" onclick="showScreen('s-new-report')">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1v14M1 8h14"/></svg>
         Novo Relatório
-      </div>` : ''}
+      </div>
       <div class="nav-item" data-screen="s-reports" onclick="showScreen('s-reports')">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 2h12v12H2z"/><path d="M5 6h6M5 9h4"/></svg>
         Relatórios
@@ -1212,8 +1212,9 @@ async function deleteReport(id) {
   const desc = r ? `${r.disciplina||''} — ${r.projetoNome||r.projeto_nome||''} (${fmtDate(r.createdAt||r.created_at)})` : id;
   const ok   = await confirmar(`Excluir este relatório?\n\n${desc}`, 'Excluir relatório');
   if (!ok) return;
-  reports = reports.filter(r=>r.id!==id);
-  try { await window._sb.from('reports').delete().eq('id', id); } catch(e) {}
+  const { error } = await window._sb.from('reports').delete().eq('id', id);
+  if (error) { toast(`Erro ao excluir relatório: ${error.message}`, 'error'); return; }
+  await loadReports();
   toast('Relatório removido.', 'info');
   renderReports();
 }
@@ -1222,8 +1223,9 @@ async function deleteProject(id) {
   const proj = projects.find(x=>x.id===id);
   const ok   = await confirmar(`Excluir o projeto "${proj?.nome||id}"?`, 'Excluir projeto');
   if (!ok) return;
-  projects = projects.filter(p=>p.id!==id);
-  try { await window._sb.from('projects').delete().eq('id', id); } catch(e) {}
+  const { error } = await window._sb.from('projects').delete().eq('id', id);
+  if (error) { toast(`Erro ao excluir projeto: ${error.message}`, 'error'); return; }
+  await loadProjects();
   toast('Projeto removido.', 'info');
   renderProjects();
 }
@@ -1234,8 +1236,9 @@ async function deleteUser(id) {
   if (u?.id === currentUser.id) { toast('Não é possível excluir o próprio usuário.', 'error'); return; }
   const ok = await confirmar(`Excluir o usuário "${u?.name||id}"?`, 'Excluir usuário');
   if (!ok) return;
-  users = users.filter(x=>x.id!==id);
-  try { await window._sb.from('users').delete().eq('id', id); } catch(e) {}
+  const { error } = await window._sb.from('users').delete().eq('id', id);
+  if (error) { toast(`Erro ao excluir usuário: ${error.message}`, 'error'); return; }
+  await loadUsers();
   toast('Usuário removido.', 'info');
   renderUsers();
 }
@@ -1720,10 +1723,76 @@ async function submitReport() {
     }).eq('id', reportId);
   } catch(e) {}
 
+  // ── Notificar gestor por e-mail ──────────────────────────────────────────
+  try {
+    await notificarGestorNovoRelatorio(report);
+  } catch(e) {}
+
   btn.innerHTML = '✓ Enviado!';
   backBtn.disabled = false;
 
   setTimeout(() => { showScreen('s-reports'); }, 1500);
+}
+
+// ── E-MAIL DE NOTIFICAÇÃO AO GESTOR ──────────────────────────────────────
+async function notificarGestorNovoRelatorio(report) {
+  // Buscar e-mail do gestor do projeto
+  const proj = projects.find(p => p.id === (report.projetoId||report.projeto_id));
+  const gestorEmail = proj?.gestorEmail || proj?.gestor_email;
+  if (!gestorEmail) return;
+
+  // Buscar dados do gestor
+  const { data: gestor } = await window._sb.from('users')
+    .select('name, email').eq('email', gestorEmail).single();
+  if (!gestor) return;
+
+  // Montar nome do arquivo
+  const docNum = report.id.replace('R','').slice(-6);
+  const siglasDisc = {
+    'Detecção e Alarme de Incêndio':'SDAI','CFTV':'CFTV','Controle de Acesso':'CA',
+    'Cabeamento Estruturado':'CAB','Automação Predial':'BMS','Alarme Intrusão':'ALM',
+    'Sonorização':'SOM','Audio e Video':'AV','Outros':'OTR',
+  };
+  const sigla    = siglasDisc[report.disciplina] || 'REL';
+  const nomeArq  = `${sigla}_${docNum}`;
+  const nomeObra = proj?.nome || report.projetoNome || report.projeto_nome || '—';
+  const odUrl    = report.odWebUrl || report.od_web_url || null;
+
+  const assunto  = `Relatório - Obra "${nomeObra}" - ${nomeArq}`;
+  const linkOD   = odUrl ? `<p><a href="${odUrl}" style="background:#0078d4;color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none;display:inline-block">Abrir no OneDrive</a></p>` : '<p><em>Arquivo ainda não sincronizado no OneDrive.</em></p>';
+  const dtBR     = new Date(report.createdAt||report.created_at).toLocaleString('pt-BR');
+
+  const corpo = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+      <div style="background:#1a3a6b;padding:20px 24px;border-radius:8px 8px 0 0">
+        <h2 style="color:#fff;margin:0;font-size:16px">🏗️ Novo Relatório de Atividade</h2>
+      </div>
+      <div style="background:#f8f9fa;padding:24px;border-radius:0 0 8px 8px;border:1px solid #e0e0e0">
+        <p>Olá, <strong>${gestor.name}</strong>!</p>
+        <p>Um novo relatório foi gerado no projeto sob sua responsabilidade.</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0">
+          <tr><td style="padding:6px 12px;background:#e8f0fe;font-weight:700;width:35%">Obra</td><td style="padding:6px 12px;border-bottom:1px solid #e0e0e0">${nomeObra}</td></tr>
+          <tr><td style="padding:6px 12px;background:#e8f0fe;font-weight:700">Arquivo</td><td style="padding:6px 12px;border-bottom:1px solid #e0e0e0"><strong>${nomeArq}</strong></td></tr>
+          <tr><td style="padding:6px 12px;background:#e8f0fe;font-weight:700">Disciplina</td><td style="padding:6px 12px;border-bottom:1px solid #e0e0e0">${report.disciplina||'—'}</td></tr>
+          <tr><td style="padding:6px 12px;background:#e8f0fe;font-weight:700">Técnico</td><td style="padding:6px 12px;border-bottom:1px solid #e0e0e0">${report.tecnico||'—'}</td></tr>
+          <tr><td style="padding:6px 12px;background:#e8f0fe;font-weight:700">Status</td><td style="padding:6px 12px;border-bottom:1px solid #e0e0e0">${report.status||'—'}</td></tr>
+          <tr><td style="padding:6px 12px;background:#e8f0fe;font-weight:700">Data/Hora</td><td style="padding:6px 12px">${dtBR}</td></tr>
+        </table>
+        ${linkOD}
+        <hr style="border:none;border-top:1px solid #e0e0e0;margin:20px 0">
+        <p style="font-size:12px;color:#666">Drone Sistemas — Sistema de Relatórios de Obra</p>
+      </div>
+    </div>`;
+
+  // Enviar via Supabase Edge Function (resend)
+  // A função 'send-email' precisa estar configurada no Supabase
+  const { error } = await window._sb.functions.invoke('send-email', {
+    body: { to: gestorEmail, subject: assunto, html: corpo },
+  });
+
+  if (!error) {
+    addUpStep(`📧 Notificação enviada para ${gestorEmail}`, 'done');
+  }
 }
 
 async function uploadToOneDrive(report, proj) {
