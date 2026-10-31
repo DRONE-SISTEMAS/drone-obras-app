@@ -1060,7 +1060,7 @@ function buildNav() {
       ${(isAdmin || isGestor) ? `
       <div class="nav-label" style="margin-top:12px">Administração</div>` : ''}
 
-      ${isAdmin ? `
+      ${(isAdmin || isGestor) ? `
       <div class="nav-item" data-screen="s-projects" onclick="showScreen('s-projects')">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="14" height="10" rx="1.5"/><path d="M5 4V2.5A1.5 1.5 0 016.5 1h3A1.5 1.5 0 0111 2.5V4"/></svg>
         Projetos
@@ -2264,8 +2264,15 @@ function openProjectModal() {
   document.getElementById('proj-edit-id').value = '';
   document.getElementById('proj-modal-title').textContent = 'Novo Projeto';
   document.getElementById('od-validation-status').style.display = 'none';
-  // Garantir que campos de ID estejam editáveis
   unlockOdFields();
+  // Gestor parcial: pré-preencher como responsável e bloquear campo
+  if (currentUser.role === 'gestor') {
+    document.getElementById('proj-gestor').value       = currentUser.name;
+    document.getElementById('proj-gestor-email').value = currentUser.email;
+    document.getElementById('proj-gestor-email').readOnly = true;
+  } else {
+    document.getElementById('proj-gestor-email').readOnly = false;
+  }
   document.getElementById('modal-project').style.display = 'flex';
 }
 
@@ -2506,12 +2513,17 @@ function renderUsers() {
   const isAdmin  = currentUser.role === 'admin';
   const isGestor = currentUser.role === 'gestor';
 
-  // Gestor parcial só vê técnicos dos seus projetos
+  // Gestor parcial vê técnicos criados por ele OU vinculados aos seus projetos
   let listaUsers = users;
   if (isGestor) {
     const meusProjs = projects.filter(p=>(p.gestorEmail||p.gestor_email)===currentUser.email);
-    const tecnicosPermitidos = new Set(meusProjs.flatMap(p=>p.users||[]));
-    listaUsers = users.filter(u => u.role === 'tecnico' && tecnicosPermitidos.has(u.email));
+    const tecnicosVinculados = new Set(meusProjs.flatMap(p=>p.users||[]));
+    listaUsers = users.filter(u =>
+      u.role === 'tecnico' && (
+        tecnicosVinculados.has(u.email) ||
+        u.created_by === currentUser.email  // criado por este gestor
+      )
+    );
   }
 
   // Atualizar opções do select de perfil no modal
@@ -2649,11 +2661,11 @@ async function saveUser() {
     try { await window._sb.from('users').upsert(users[idx]); } catch(e) {}
     toast(`Usuário ${nome} atualizado.`, 'success');
   } else {
-    // Criação
-    const u = { id:'u'+Date.now(), name:nome, email, role, senha };
+    // Criação — salvar quem criou para filtro do gestor parcial
+    const u = { id:'u'+Date.now(), name:nome, email, role, senha, created_by: currentUser.email };
     users.push(u);
     try { await window._sb.from('users').upsert(u); } catch(e) {}
-    toast(`Usuário ${nome} criado. Informe a senha: ${senha}`, 'success');
+    toast(`Usuário ${nome} criado. Senha: ${senha}`, 'success');
   }
 
   closeModal('modal-user');
