@@ -1229,6 +1229,7 @@ async function deleteProject(id) {
 }
 
 async function deleteUser(id) {
+  if (currentUser.role === 'gestor') { toast('Gestor não pode excluir usuários.', 'info'); return; }
   const u  = users.find(x=>x.id===id);
   if (u?.id === currentUser.id) { toast('Não é possível excluir o próprio usuário.', 'error'); return; }
   const ok = await confirmar(`Excluir o usuário "${u?.name||id}"?`, 'Excluir usuário');
@@ -2237,25 +2238,36 @@ function closePrintScreen() {
 // ═══════════════════════════════════════════════════════
 function renderProjects() {
   const tbody = document.getElementById('projects-tbody');
-  if (!projects.length) { tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text2);padding:24px">Nenhum projeto.</td></tr>`; return; }
-  tbody.innerHTML = projects.map(p => `
-    <tr>
-      <td><strong>${p.nome}</strong></td>
-      <td>${p.cliente}</td>
-      <td style="font-family:'JetBrains Mono',monospace;font-size:12px">${p.cc}</td>
-      <td>${p.gestor}</td>
+  const isAdmin  = currentUser.role === 'admin';
+  const isGestor = currentUser.role === 'gestor';
+
+  // Gestor vê TODOS os projetos, mas só pode editar/deletar os seus
+  const lista = projects;
+
+  if (!lista.length) { tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text2);padding:24px">Nenhum projeto.</td></tr>`; return; }
+
+  tbody.innerHTML = lista.map(p => {
+    const meuProjeto = isAdmin || (p.gestorEmail||p.gestor_email) === currentUser.email;
+    return `<tr>
+      <td><strong>${p.nome}</strong>${!meuProjeto && isGestor ? ' <span style="font-size:10px;color:var(--text3)">(somente leitura)</span>' : ''}</td>
+      <td>${p.cliente||'—'}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:12px">${p.cc||'—'}</td>
+      <td>${p.gestor||'—'}</td>
       <td>
         ${p.odDriveId
           ? `<span class="chip chip-od">✓ Configurado</span>${p.odPath?`<br><span style="font-size:10px;color:var(--text2);font-family:'JetBrains Mono',monospace;display:block;margin-top:3px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.odPath}">${p.odPath}</span>`:''}`
           : `<span class="chip chip-warn">⚠ Pendente</span>`}
       </td>
       <td><span class="chip chip-blue">${(p.users||[]).length}</span></td>
-      <td><span class="chip chip-green">${reports.filter(r=>r.projetoId===p.id).length}</span></td>
+      <td><span class="chip chip-green">${reports.filter(r=>(r.projetoId||r.projeto_id)===p.id).length}</span></td>
       <td>
-        <button class="btn btn-secondary btn-sm" onclick="editProject('${p.id}')">Editar</button>
-        <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="deleteProject('${p.id}')">✕</button>
+        ${meuProjeto ? `
+          <button class="btn btn-secondary btn-sm" onclick="editProject('${p.id}')">Editar</button>
+          <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="deleteProject('${p.id}')">✕</button>
+        ` : `<span style="font-size:11px;color:var(--text3)">—</span>`}
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 function openProjectModal() {
@@ -2513,17 +2525,21 @@ function renderUsers() {
   const isAdmin  = currentUser.role === 'admin';
   const isGestor = currentUser.role === 'gestor';
 
-  // Gestor parcial vê técnicos criados por ele OU vinculados aos seus projetos
+  // Gestor vê: técnicos criados por ele + técnicos vinculados aos seus projetos
   let listaUsers = users;
   if (isGestor) {
     const meusProjs = projects.filter(p=>(p.gestorEmail||p.gestor_email)===currentUser.email);
     const tecnicosVinculados = new Set(meusProjs.flatMap(p=>p.users||[]));
     listaUsers = users.filter(u =>
       u.role === 'tecnico' && (
-        tecnicosVinculados.has(u.email) ||
-        u.created_by === currentUser.email  // criado por este gestor
+        u.created_by === currentUser.email ||
+        tecnicosVinculados.has(u.email)
       )
     );
+    // Se ainda vazio, mostrar todos os técnicos criados por este gestor (recém-criados)
+    if (!listaUsers.length) {
+      listaUsers = users.filter(u => u.role === 'tecnico' && u.created_by === currentUser.email);
+    }
   }
 
   // Atualizar opções do select de perfil no modal
@@ -2558,7 +2574,7 @@ function renderUsers() {
       <td>
         ${u.role !== 'admin' || isAdmin ? `<button class="btn btn-secondary btn-sm" onclick="editUser('${u.id}')">Editar</button>` : ''}
         <button class="btn btn-od btn-sm" style="margin-left:4px" onclick="resetSenha('${u.id}')">🔑 Senha</button>
-        ${(isAdmin || (isGestor && u.role==='tecnico')) ? `<button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="deleteUser('${u.id}')">✕</button>` : ''}
+        ${isAdmin ? `<button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="deleteUser('${u.id}')">✕</button>` : ''}
       </td>
     </tr>`).join('');
 }
