@@ -882,6 +882,38 @@ async function processarFilaOneDrive() {
   } catch(e) {}
 }
 
+async function renovarTokenPorRefresh(g) {
+  try {
+    const resp = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id:     AZURE_CLIENT_ID,
+        grant_type:    'refresh_token',
+        refresh_token: g.graph_refresh_token,
+        scope:         AZURE_SCOPES,
+      }),
+    });
+    const data = await resp.json();
+    if (data.access_token) {
+      const newExpires = new Date(Date.now() + data.expires_in * 1000).toISOString();
+      await window._sb.from('users').update({
+        graph_token:         data.access_token,
+        graph_refresh_token: data.refresh_token || g.graph_refresh_token,
+        graph_expires_at:    newExpires,
+      }).eq('id', g.id);
+      if (currentUser?.id === g.id) {
+        currentUser.graph_token      = data.access_token;
+        currentUser.graph_expires_at = newExpires;
+        localStorage.setItem('drone_user', JSON.stringify(currentUser));
+        atualizarBotaoMicrosoft();
+      }
+      return data.access_token;
+    }
+  } catch(e) {}
+  return null;
+}
+
 function atualizarBotaoMicrosoft() {
   const btn = document.getElementById('btn-ms-connect');
   if (!btn) return;
@@ -1847,7 +1879,8 @@ async function uploadToOneDrive(report, proj) {
 
   // Obter token do gestor (renova automaticamente via refresh_token se expirado)
   addUpStep('Verificando token Microsoft…', 'active');
-  const token = await obterTokenGestor();
+  const gestorEmail = proj.gestorEmail || proj.gestor_email || null;
+  const token = await obterTokenGestor(gestorEmail);
   if (!token) {
     addUpStep('Token Microsoft não disponível. Clique em "Conectar OneDrive" no topo.', 'err');
     toast('Clique em "Conectar OneDrive" no topo do app.', 'error');
@@ -2475,54 +2508,46 @@ function unlockOdFields() {
 }
 
 // ── TOKEN GESTOR CENTRALIZADO (com renovação + fallback Client Credentials) ──
-async function obterTokenGestor() {
+async function obterTokenGestor(gestorEmail) {
   // 1. Token do usuário atual ainda válido
   const expires = currentUser?.graph_expires_at ? new Date(currentUser.graph_expires_at) : null;
   if (currentUser?.graph_token && expires && expires > new Date(Date.now() + 60000)) {
-    return currentUser.graph_token;
+    // Se o gestor do projeto é o usuário atual, usar direto
+    if (!gestorEmail || currentUser.email === gestorEmail) return currentUser.graph_token;
   }
 
-  // 2. Buscar token de gestor no Supabase e renovar via refresh_token se necessário
+  // 2. Buscar token do gestor específico do projeto primeiro
   try {
-    // Buscar token do gestor do projeto ou de qualquer admin/gestor com token
-    const { data: gestores } = await window._sb
-      .from('users').select('id, graph_token, graph_refresh_token, graph_expires_at')
+    let query = window._sb.from('users').select('id, email, graph_token, graph_refresh_token, graph_expires_at')
       .in('role',['admin','gestor']).not('graph_token','is',null).limit(5);
 
+    // Priorizar o gestor do projeto específico
+    if (gestorEmail) {
+      const { data: gestorEspecifico } = await window._sb.from('users')
+        .select('id, email, graph_token, graph_refresh_token, graph_expires_at')
+        .eq('email', gestorEmail).single();
+      if (gestorEspecifico?.graph_token) {
+        const exp = gestorEspecifico.graph_expires_at ? new Date(gestorEspecifico.graph_expires_at) : null;
+        if (exp && exp > new Date(Date.now() + 60000)) return gestorEspecifico.graph_token;
+        // Token expirado — tentar renovar
+        if (gestorEspecifico.graph_refresh_token) {
+          const tok = await renovarTokenPorRefresh(gestorEspecifico);
+          if (tok) return tok;
+        }
+      }
+    }
+
+    // Fallback: qualquer admin/gestor com token
+    const { data: gestores } = await query;
+
     if (gestores?.length) {
-      const g = gestores[0];
-      const gExpires = g.graph_expires_at ? new Date(g.graph_expires_at) : null;
-      const valido   = gExpires && gExpires > new Date(Date.now() + 60000);
-
-      if (valido) return g.graph_token;
-
-      // Token expirado — renovar via refresh_token
-      if (g.graph_refresh_token) {
-        const resp = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            client_id:     AZURE_CLIENT_ID,
-            grant_type:    'refresh_token',
-            refresh_token: g.graph_refresh_token,
-            scope:         AZURE_SCOPES,
-          }),
-        });
-        const data = await resp.json();
-        if (data.access_token) {
-          const newExpires = new Date(Date.now() + data.expires_in * 1000).toISOString();
-          await window._sb.from('users').update({
-            graph_token:         data.access_token,
-            graph_refresh_token: data.refresh_token || g.graph_refresh_token,
-            graph_expires_at:    newExpires,
-          }).eq('id', g.id);
-          if (currentUser?.id === g.id) {
-            currentUser.graph_token = data.access_token;
-            currentUser.graph_expires_at = newExpires;
-            localStorage.setItem('drone_user', JSON.stringify(currentUser));
-            atualizarBotaoMicrosoft();
-          }
-          return data.access_token;
+      for (const g of gestores) {
+        const gExpires = g.graph_expires_at ? new Date(g.graph_expires_at) : null;
+        const valido   = gExpires && gExpires > new Date(Date.now() + 60000);
+        if (valido) return g.graph_token;
+        if (g.graph_refresh_token) {
+          const tok = await renovarTokenPorRefresh(g);
+          if (tok) return tok;
         }
       }
     }
@@ -2609,6 +2634,7 @@ async function saveProject() {
     if (error) { toast('Erro ao salvar projeto: ' + error.message, 'error'); return; }
   } catch(e) { toast('Erro: ' + (e.message||e), 'error'); return; }
   closeModal('modal-project');
+  await loadProjects(); // recarregar do banco para garantir IDs atualizados
   toast('Projeto salvo.','success');
   renderProjects();
 }
