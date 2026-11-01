@@ -712,7 +712,7 @@
 <div id="toast"></div>
 
 <script>
-// ── SUPABASE ─────────────────────────────────────────
+/// ── SUPABASE ─────────────────────────────────────────
 // !! SUBSTITUA PELAS SUAS CREDENCIAIS !!
 const SUPABASE_URL = 'https://ojdhovliloxdqbaannrm.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZGhvdmxpbG94ZHFiYWFubnJtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI5OTM0MDEsImV4cCI6MjEwODU2OTQwMX0.LMH4Myvb1E0eqzHozGsaVmtLOt2Kn8ZR1bARTL7ptM0';
@@ -1753,10 +1753,8 @@ async function submitReport() {
     }).eq('id', reportId);
   } catch(e) {}
 
-  // ── Notificar gestor por e-mail ──────────────────────────────────────────
-  try {
-    await notificarGestorNovoRelatorio(report);
-  } catch(e) {}
+  // ── Notificar gestor por e-mail (ativo após configurar Edge Function send-email) ──
+  // try { await notificarGestorNovoRelatorio(report); } catch(e) {}
 
   btn.innerHTML = '✓ Enviado!';
   backBtn.disabled = false;
