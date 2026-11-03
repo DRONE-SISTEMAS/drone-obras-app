@@ -1374,7 +1374,7 @@ async function loadReports() {
     qFinal = q; // admin vê tudo
   } else if (currentUser.role === 'gestor') {
     // gestor parcial vê relatórios dos projetos atribuídos a ele
-    const meusProjs = projects.filter(p => (p.gestorEmail||p.gestor_email) === currentUser.email).map(p=>p.id);
+    const meusProjs = projects.filter(p => (p.gestorEmail||p.gestor_email) === currentUser.email || (p.users||[]).includes(currentUser.email)).map(p=>p.id);
     qFinal = meusProjs.length ? q.in('projeto_id', meusProjs) : q.eq('projeto_id', 'none');
   } else {
     qFinal = q.eq('tecnico_email', currentUser.email);
@@ -1405,7 +1405,7 @@ async function loadUsers() {
 //  DASHBOARD
 // ═══════════════════════════════════════════════════════
 function renderDashboard() {
-  const myP = currentUser.role === 'admin' ? projects : currentUser.role === 'gestor' ? projects.filter(p=>(p.gestorEmail||p.gestor_email)===currentUser.email) : projects.filter(p=>(p.users||[]).includes(currentUser.email));
+  const myP = currentUser.role === 'admin' ? projects : currentUser.role === 'gestor' ? projects.filter(p=>(p.gestorEmail||p.gestor_email)===currentUser.email || (p.users||[]).includes(currentUser.email)) : projects.filter(p=>(p.users||[]).includes(currentUser.email));
   const myR = currentUser.role === 'admin' ? reports : currentUser.role === 'gestor' ? reports.filter(r=>{ const p=projects.find(x=>x.id===(r.projetoId||r.projeto_id)); return (p?.gestorEmail||p?.gestor_email)===currentUser.email; }) : reports.filter(r=>r.tecnicoEmail===currentUser.email);
   const concluded = myR.filter(r=>r.status==='Concluído').length;
   const pending   = myR.filter(r=>r.status==='Pendência').length;
@@ -1437,7 +1437,7 @@ function resetNewReport() {
   document.getElementById('upload-progress-box').style.display = 'none';
   const sel = document.getElementById('nr-projeto');
   sel.innerHTML = '<option value="">Selecione…</option>';
-  const myP = currentUser.role === 'admin' ? projects : currentUser.role === 'gestor' ? projects.filter(p=>(p.gestorEmail||p.gestor_email)===currentUser.email) : projects.filter(p=>(p.users||[]).includes(currentUser.email));
+  const myP = currentUser.role === 'admin' ? projects : currentUser.role === 'gestor' ? projects.filter(p=>(p.gestorEmail||p.gestor_email)===currentUser.email || (p.users||[]).includes(currentUser.email)) : projects.filter(p=>(p.users||[]).includes(currentUser.email));
   myP.forEach(p => { const o = document.createElement('option'); o.value = p.id; o.textContent = `${p.nome} (${p.cc})`; sel.appendChild(o); });
   ['nr-disciplina','nr-tipo-atendimento','nr-atividade','nr-status','nr-obs','nr-andar','nr-area','nr-sala'].forEach(id => {
     const el = document.getElementById(id); if (!el) return;
