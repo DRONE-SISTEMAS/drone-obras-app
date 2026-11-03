@@ -1346,14 +1346,25 @@ async function loadAll() {
 async function loadProjects() {
   const { data, error } = await window._sb.from('projects').select('*');
   if (error) { console.error('loadProjects:', error); }
-  projects = (data || []).map(p => ({
-    ...p,
-    id:          p.id,
-    odDriveId:   p.od_drive_id  || p.odDriveId,
-    odItemId:    p.od_item_id   || p.odItemId,
-    odPath:      p.od_path      || p.odPath,
-    gestorEmail: p.gestor_email || p.gestorEmail,
-  }));
+  projects = (data || []).map(p => {
+    // Normalizar users para array sempre
+    let usersArr = p.users || [];
+    if (typeof usersArr === 'string') {
+      try { usersArr = JSON.parse(usersArr); } catch(_) {
+        usersArr = usersArr.split(',').map(e => e.trim().replace(/["\[\]]/g,''));
+      }
+    }
+    if (!Array.isArray(usersArr)) usersArr = [];
+    return {
+      ...p,
+      id:          p.id,
+      users:       usersArr,
+      odDriveId:   p.od_drive_id  || p.odDriveId,
+      odItemId:    p.od_item_id   || p.odItemId,
+      odPath:      p.od_path      || p.odPath,
+      gestorEmail: p.gestor_email || p.gestorEmail,
+    };
+  });
 }
 
 async function loadReports() {
